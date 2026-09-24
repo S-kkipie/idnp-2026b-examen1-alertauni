@@ -1,0 +1,34 @@
+project_id = "asbfudrltxymfxwahmiy"
+
+[functions.service-posts]
+verify_jwt = false
+
+[functions.service-post-add]
+verify_jwt = false
+
+[functions.service-check-profile]
+verify_jwt = false
+
+[functions.service-update-profile]
+verify_jwt = false
+
+[functions.service-comment-add]
+verify_jwt = false
+
+[functions.service-course-catalog]
+verify_jwt = false
+
+[functions.service-student-enrollment]
+verify_jwt = false
+
+[functions.service-find-course-catalog]
+verify_jwt = false
+
+[functions.service-course-enroll]
+verify_jwt = false
+
+[functions.service-course-student]
+verify_jwt = false
+
+[functions.service-post-private-add]
+verify_jwt = false
