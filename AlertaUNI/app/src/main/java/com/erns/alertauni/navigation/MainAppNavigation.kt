@@ -1,5 +1,9 @@
 package com.erns.alertauni.navigation
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -13,6 +17,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,6 +33,7 @@ import com.erns.alertauni.screen.contact.StudentContactScreen
 import com.erns.alertauni.screen.contact.TeacherContactScreen
 import com.erns.alertauni.screen.course.StudentCourseScreen
 import com.erns.alertauni.screen.login.LoginScreen
+import com.erns.alertauni.screen.notification.NotificationScreen
 import com.erns.alertauni.screen.login.ProfileScreen
 import com.erns.alertauni.screen.post.PostCommentScreen
 import com.erns.alertauni.screen.post.PostScreen
@@ -84,7 +90,8 @@ fun MainMenuScreen(userType: String) {
             listOf(
                 RouteMainMenu.Posts,
                 RouteMainMenu.TeacherContacts,
-                RouteMainMenu.Courses
+                RouteMainMenu.Courses,
+                RouteMainMenu.Notifications
             )
         )
     } else if (userType == "STUDENT") {
@@ -92,17 +99,29 @@ fun MainMenuScreen(userType: String) {
             listOf(
                 RouteMainMenu.Posts,
                 RouteMainMenu.StudentContacts,
-                RouteMainMenu.Courses
+                RouteMainMenu.Courses,
+                RouteMainMenu.Notifications
             )
         )
+    }
+
+    // Android 13+ exige solicitar en tiempo de ejecución el permiso para mostrar notificaciones
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            if (currentDestination == RouteScreen.Posts.route ||
-                currentDestination == RouteMainMenu.Courses.route
-            ) {
+            // El docente publica anuncios; el estudiante se inscribe en cursos
+            val showFab = (userType == "PROFESSOR" && currentDestination == RouteMainMenu.Posts.route) ||
+                    (userType == "STUDENT" && currentDestination == RouteMainMenu.Courses.route)
+            if (showFab) {
                 FloatingActionButton(
                     shape = CircleShape,
                     onClick = fabAction.value
@@ -172,6 +191,9 @@ fun MainMenuScreen(userType: String) {
             }
             composable(RouteMainMenu.StudentContacts.route) {
                 StudentContactScreen()
+            }
+            composable(RouteMainMenu.Notifications.route) {
+                NotificationScreen()
             }
 
         }

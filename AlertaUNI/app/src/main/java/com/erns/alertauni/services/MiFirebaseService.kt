@@ -5,18 +5,21 @@ import android.app.NotificationManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.room.Room
 import com.erns.alertauni.R
-import com.erns.alertauni.data.local.AppDatabase
-import com.erns.alertauni.data.model.NotificacionEntity
+import com.erns.alertauni.data.repository.NotificationRepository
 import com.erns.alertauni.domain.manager.DataStoreHelper
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -25,10 +28,16 @@ class MiFirebaseService : FirebaseMessagingService() {
     @Inject
     lateinit var dataStoreHelper: DataStoreHelper
 
+    @Inject
+    lateinit var notificationRepository: NotificationRepository
+
+    // Scope ligado al ciclo de vida del servicio; se cancela en onDestroy
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         Log.d("FCM", "Nuevo token: $token")
-        CoroutineScope(Dispatchers.IO).launch {
+        serviceScope.launch {
             dataStoreHelper.saveFCMToken(token)
         }
     }
@@ -51,6 +60,10 @@ class MiFirebaseService : FirebaseMessagingService() {
             } catch (e: Exception) {
                 Log.e("FCM", "Error parseando JSON de notificación", e)
                 mostrarNotificacion(titulo, body)
+                // Mensaje en texto plano: también se guarda en la bandeja con la hora local
+                val fechaLocal = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                    .format(Date())
+                saveNotificationToDatabase(titulo, body, fechaLocal)
             }
         } else {
             Log.d("FCM", "El cuerpo del mensaje está vacío")
@@ -81,18 +94,15 @@ class MiFirebaseService : FirebaseMessagingService() {
         manager.notify(System.currentTimeMillis().toInt(), notificacion)
     }
 
-    private fun saveNotificationToDatabase(cursoId: String, mensaje: String, fechaHora: String) {
-        val db = Room.databaseBuilder(this, AppDatabase::class.java, "notificaciones-db").build()
-        val dao = db.notificacionDao()
-
-        val notificacionEntity = NotificacionEntity(
-            cursoId = cursoId,
-            mensaje = mensaje,
-            fecha = fechaHora
-        )
-
-        CoroutineScope(Dispatchers.IO).launch {
-            dao.insertar(notificacionEntity)
+    private fun saveNotificationToDatabase(titulo: String, mensaje: String, fechaHora: String) {
+        // Se reutiliza la instancia única de Room provista por Hilt (DatabaseModule)
+        serviceScope.launch {
+            notificationRepository.saveNotification(titulo, mensaje, fechaHora)
         }
+    }
+
+    override fun onDestroy() {
+        serviceScope.cancel()
+        super.onDestroy()
     }
 }

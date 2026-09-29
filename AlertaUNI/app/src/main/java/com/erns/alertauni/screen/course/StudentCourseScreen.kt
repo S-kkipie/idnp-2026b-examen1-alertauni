@@ -2,6 +2,7 @@ package com.erns.alertauni.screen.course
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,15 +13,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -36,63 +39,46 @@ fun StudentCourseScreen(
     snackbarHostState: SnackbarHostState,
     onFabActionReady: (() -> Unit) -> Unit
 ) {
-    //val scope = rememberCoroutineScope()
     val studentEnrollmentListState = viewModel.studentEnrollmentList.collectAsState()
-    val showAddDialog = remember { mutableStateOf(false) }
-    val studentEnrollment = remember { mutableStateOf<StudentEnrollment?>(null) }
-    val username = remember { mutableStateOf("") }
-
-    LaunchedEffect(Unit) {
-        viewModel.username.collect {
-            username.value = it
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        viewModel.studentEnrollment.collect { value ->
-            studentEnrollment.value = value
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        viewModel.courseState.collect { value ->
-            if (value == CourseViewModel.CourseState.Saved) {
-                showAddDialog.value = false
-            }
-        }
-    }
+    val isLoadingCourses = viewModel.isLoadingCourses.collectAsState()
+    val enrollUiState = viewModel.enrollUiState.collectAsState()
+    val username = viewModel.username.collectAsState()
+    val showAddDialog = rememberSaveable { mutableStateOf(false) }
 
     val onClickFloatingActionButton: () -> Unit = {
+        viewModel.clearEnrollment()
         showAddDialog.value = true
     }
 
-    onFabActionReady(onClickFloatingActionButton)
-
-    val onClickFindCourse: (String) -> Unit = { searchCode ->
-        viewModel.findCourse(searchCode)
+    LaunchedEffect(Unit) {
+        onFabActionReady(onClickFloatingActionButton)
     }
 
-    val onClickCourseEnroll: (String) -> Unit = {
-        viewModel.courseEnroll(it)
+    // Evento de un solo disparo: confirmación visible aun después de cerrar el diálogo
+    LaunchedEffect(enrollUiState.value) {
+        val state = enrollUiState.value
+        if (state is CourseViewModel.EnrollUiState.Enrolled) {
+            snackbarHostState.showSnackbar("Te registraste en ${state.course.courseName}")
+        }
     }
-
 
     if (showAddDialog.value) {
         AddCourseDialog(
-            studentEnrollment.value,
+            enrollUiState = enrollUiState.value,
             onDismiss = {
                 showAddDialog.value = false
                 viewModel.clearEnrollment()
             },
-            onClickFindCourse = onClickFindCourse,
-            onClickCourseEnroll = onClickCourseEnroll
+            onClickFindCourse = { searchCode -> viewModel.findCourse(searchCode) },
+            onClickCourseEnroll = { viewModel.courseEnroll() }
         )
     }
 
     StudentCourseScreenLayout(
         username.value,
         "Cursos",
-        studentEnrollmentListState.value
+        studentEnrollmentListState.value,
+        isLoadingCourses.value
     )
 }
 
@@ -100,13 +86,34 @@ fun StudentCourseScreen(
 fun StudentCourseScreenLayout(
     username: String,
     title: String,
-    studentEnrollmentList: List<StudentEnrollment>
+    studentEnrollmentList: List<StudentEnrollment>,
+    isLoading: Boolean = false
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         SearchBoxComponent(username,title)
-        LazyColumn {
-            items(studentEnrollmentList) { studentEnrollment ->
-                StudentEnrollmentCard(studentEnrollment)
+        when {
+            isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+
+            studentEnrollmentList.isEmpty() -> Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Aún no estás registrado en ningún curso.\nUsa el botón + e ingresa el código que te dio tu docente.",
+                    color = MyMutedForegroundColor,
+                    textAlign = TextAlign.Center,
+                    fontSize = 16.sp
+                )
+            }
+
+            else -> LazyColumn {
+                items(studentEnrollmentList, key = { it.course_catalog_id }) { studentEnrollment ->
+                    StudentEnrollmentCard(studentEnrollment)
+                }
             }
         }
     }
