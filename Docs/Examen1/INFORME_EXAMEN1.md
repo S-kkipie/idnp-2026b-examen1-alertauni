@@ -1,7 +1,7 @@
 # Examen 1 – 2026B · Introducción al Desarrollo de Nuevas Plataformas (E)
 
 **Proyecto analizado:** AlertaUNI (`com.erns.alertauni`) – Android · Jetpack Compose · Hilt · Supabase · Firebase Cloud Messaging
-**Grupo:** B7
+**Grupo:** B7 — Adrian Issac Mamani Quispe · Daniel Wilston Chura Monroy · Johann Andre Cáceres Ruiz · Daniel Bedregal Pérez · Yourdyy Yossimar Huayhua Hillpa
 **Rama de trabajo:** `examen1`
 
 ---

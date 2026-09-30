@@ -3,6 +3,8 @@
 **Curso:** Introducción al Desarrollo de Nuevas Plataformas (E) · 2026B
 **Aplicación:** AlertaUNI (Android · Jetpack Compose · Hilt · Supabase)
 **Tema:** Diseño del proceso de incorporación de estudiantes a un curso
+**Integrantes (Grupo B7):** Adrian Issac Mamani Quispe · Daniel Wilston Chura Monroy · Johann Andre Cáceres Ruiz · Daniel Bedregal Pérez · Yourdyy Yossimar Huayhua Hillpa
+**Prototipo en Figma:** https://www.figma.com/design/AqF2iVRnerwYnCzoP5dmRH/Untitled?node-id=0-1&t=vNiKA47BuQ6gfWBF-1
 
 ---
 
@@ -164,7 +166,7 @@ stateDiagram-v2
 
 ## 4. Prototipo de interfaces (4.3)
 
-Diseñado en **Google Stitch** con el sistema de diseño de la app (Material 3, primario `#1E3A8A`, esquinas 8 dp) y exportable a **Figma** (ver §8). Se diseñaron **sólo las pantallas y estados del proceso de incorporación**, no toda la aplicación.
+Diseñado en **Google Stitch** con el sistema de diseño de la app (Material 3, primario `#1E3A8A`, esquinas 8 dp) y exportado a **[Figma](https://www.figma.com/design/AqF2iVRnerwYnCzoP5dmRH/Untitled?node-id=0-1&t=vNiKA47BuQ6gfWBF-1)** (ver §8). Se diseñaron **sólo las pantallas y estados del proceso de incorporación**, no toda la aplicación.
 
 Proyecto Stitch: *"AlertaUNI – Incorporación a curso (Proyecto 01)"*. Capturas en [`stitch/`](stitch/).
 
@@ -278,7 +280,7 @@ flowchart LR
 1. Abrir el proyecto en [stitch.withgoogle.com](https://stitch.withgoogle.com) (*AlertaUNI – Incorporación a curso (Proyecto 01)*).
 2. Seleccionar las pantallas → **Export** → **Figma** (o *Copy to Figma*).
 3. En Figma, pegar en un archivo nuevo (con el plugin *Stitch to Figma* si lo solicita). Las capas quedan editables con Auto Layout.
-4. Agregar el enlace del archivo de Figma en el README.
+4. Archivo resultante: https://www.figma.com/design/AqF2iVRnerwYnCzoP5dmRH/Untitled?node-id=0-1&t=vNiKA47BuQ6gfWBF-1
 
 ---
 

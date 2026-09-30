@@ -8,6 +8,16 @@ Este repositorio contiene el **proyecto base del curso** y el trabajo de dos ent
 | **Examen 1 – 2026B** | [`Docs/Examen1/INFORME_EXAMEN1.md`](Docs/Examen1/INFORME_EXAMEN1.md) | Comprender, mejorar y hacer evolucionar la app existente |
 | **Proyecto Integrador – Parte 1** | [`Docs/Proyecto01/INFORME_PROYECTO01.md`](Docs/Proyecto01/INFORME_PROYECTO01.md) | Diseño del proceso de incorporación de estudiantes a un curso |
 
+## Integrantes (Grupo B7)
+
+- Adrian Issac Mamani Quispe
+- Daniel Wilston Chura Monroy
+- Johann Andre Cáceres Ruiz
+- Daniel Bedregal Pérez
+- Yourdyy Yossimar Huayhua Hillpa
+
+**Prototipo en Figma:** [AlertaUNI – Incorporación a curso](https://www.figma.com/design/AqF2iVRnerwYnCzoP5dmRH/Untitled?node-id=0-1&t=vNiKA47BuQ6gfWBF-1)
+
 Estructura: `AlertaUNI/` (app Android) · `Backend/supabase/` (Edge Functions y migraciones) · `Docs/` (informes, prototipos y modelo de datos).
 
 Leyenda: ✅ hecho · 🟡 parcial · ⬜ pendiente (lo hace el grupo)
@@ -89,7 +99,7 @@ Leyenda: ✅ hecho · 🟡 parcial · ⬜ pendiente (lo hace el grupo)
 | Estudiante ya registrado | ✅ | 04 |
 | Error durante el proceso | ✅ | 07 Error de red |
 | (extra) Pendiente de aprobación y vista del docente | ✅ | 05 y 08 |
-| **Archivo en Figma** | ⬜ | Falta exportar de Stitch a Figma (pasos en el informe §8) y **pegar aquí el enlace**. Las capturas de las pantallas 01 y 09 están en el proyecto Stitch, no en el repositorio |
+| **Archivo en Figma** | ✅ | [Prototipo en Figma](https://www.figma.com/design/AqF2iVRnerwYnCzoP5dmRH/Untitled?node-id=0-1&t=vNiKA47BuQ6gfWBF-1), exportado desde Stitch. Las capturas del repositorio están en `Docs/Proyecto01/stitch/` |
 
 ### 4.4 Recursos de Android y Jetpack Compose
 
@@ -117,7 +127,7 @@ Leyenda: ✅ hecho · 🟡 parcial · ⬜ pendiente (lo hace el grupo)
 | 1 | Comparación de alternativas | ✅ | Informe Proyecto §2 |
 | 2 | Alternativa seleccionada y justificación | ✅ | Informe Proyecto §2 |
 | 3 | Flujo completo | ✅ | Informe Proyecto §3 |
-| 4 | Prototipo en Figma | 🟡 | Stitch listo; falta exportar a Figma y agregar el enlace |
+| 4 | Prototipo en Figma | ✅ | [Figma](https://www.figma.com/design/AqF2iVRnerwYnCzoP5dmRH/Untitled?node-id=0-1&t=vNiKA47BuQ6gfWBF-1) · capturas en `Docs/Proyecto01/stitch/` |
 | 5 | Recursos de Android/Compose | ✅ | Informe Proyecto §5 |
 | 6 | Prototipo en Jetpack Compose | ✅ | `AlertaUNI/app/src/main/java/com/erns/alertauni/screen/course/`, `domain/course/` |
 | 7 | Decisiones técnicas | ✅ | Informe Proyecto §7 (8 decisiones con sus alternativas) |
@@ -125,8 +135,8 @@ Leyenda: ✅ hecho · 🟡 parcial · ⬜ pendiente (lo hace el grupo)
 
 ### Pendientes del grupo
 
-- ⬜ Grupo de **4 a 5 integrantes**: agregar sus nombres a este README.
-- ⬜ Exportar las pantallas de Stitch a **Figma** y pegar el enlace.
+- ✅ Grupo de 5 integrantes (arriba).
+- ✅ Prototipo exportado a Figma.
 - ⬜ **Sustentación**: cada integrante debe poder explicar el flujo, las decisiones, los recursos, el estado y los eventos, y la relación entre Figma y el código (guía en el informe §9 y la tabla del §8).
 
 ---
