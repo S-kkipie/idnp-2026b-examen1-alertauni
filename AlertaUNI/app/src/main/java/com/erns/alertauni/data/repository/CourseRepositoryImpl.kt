@@ -3,6 +3,8 @@ package com.erns.alertauni.data.repository
 import com.erns.alertauni.common.AppEvent
 import com.erns.alertauni.common.AppEventManager
 import com.erns.alertauni.data.model.BackendException
+import com.erns.alertauni.data.model.ClassCodeActionRequest
+import com.erns.alertauni.data.model.ClassCodeInfo
 import com.erns.alertauni.data.model.CourseCatalogEntity
 import com.erns.alertauni.data.remote.CourseDataSource
 import javax.inject.Inject
@@ -24,6 +26,14 @@ class CourseRepositoryImpl@Inject constructor(
                 AppEventManager.emit(AppEvent.NavigateToCompleteProfile)
             }
             Result.failure(e)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun classCode(request: ClassCodeActionRequest): Result<ClassCodeInfo> {
+        return try {
+            Result.success(courseDataSource.callClassCodeEndpoint(request).data)
         } catch (e: Exception) {
             Result.failure(e)
         }

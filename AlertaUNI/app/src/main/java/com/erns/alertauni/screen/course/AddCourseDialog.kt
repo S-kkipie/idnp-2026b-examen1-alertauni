@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -36,12 +37,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.erns.alertauni.R
 import com.erns.alertauni.data.model.StudentEnrollment
 import com.erns.alertauni.screen.course.CourseViewModel.EnrollUiState
 import com.erns.alertauni.ui.theme.MyMutedForegroundColor
@@ -58,12 +61,16 @@ fun AddCourseDialog(
     enrollUiState: EnrollUiState,
     onDismiss: () -> Unit,
     onClickFindCourse: (String) -> Unit,
-    onClickCourseEnroll: () -> Unit
+    onClickCourseEnroll: () -> Unit,
+    onClickScanQr: () -> Unit = {}
 ) {
     // rememberSaveable: el código escrito sobrevive a la rotación de pantalla
     val inputText = rememberSaveable { mutableStateOf("") }
     val isBusy = enrollUiState is EnrollUiState.Searching || enrollUiState is EnrollUiState.Enrolling
     val course = enrollUiState.courseOrNull()
+    // Estados finales: el proceso terminó (con éxito o a la espera del docente)
+    val isFinished = enrollUiState is EnrollUiState.Enrolled ||
+            enrollUiState is EnrollUiState.PendingApproval
 
     val search: () -> Unit = {
         if (inputText.value.isNotBlank() && !isBusy) onClickFindCourse(inputText.value)
@@ -100,6 +107,28 @@ fun AddCourseDialog(
                     .padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (!isFinished) {
+                    OutlinedButton(
+                        onClick = onClickScanQr,
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MyPrimaryColor)
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.outline_qr_code_scanner_24),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Escanear código QR")
+                    }
+                    Text(
+                        text = "o ingrese el código",
+                        fontSize = 13.sp,
+                        color = MyMutedForegroundColor,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
                 TextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = inputText.value,
@@ -107,7 +136,7 @@ fun AddCourseDialog(
                     placeholder = { Text("Código de clase") },
                     shape = RoundedCornerShape(8.dp),
                     singleLine = true,
-                    enabled = !isBusy && enrollUiState !is EnrollUiState.Enrolled,
+                    enabled = !isBusy && !isFinished,
                     isError = enrollUiState is EnrollUiState.NotFound,
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.Characters,
@@ -175,12 +204,12 @@ fun AddCourseDialog(
                     )
                 ) {
                     Text(
-                        if (enrollUiState is EnrollUiState.Enrolled) "Cerrar" else "Cancelar",
+                        if (isFinished) "Cerrar" else "Cancelar",
                         fontWeight = FontWeight.SemiBold
                     )
                 }
 
-                if (enrollUiState !is EnrollUiState.Enrolled) {
+                if (!isFinished) {
                     val canEnroll = enrollUiState is EnrollUiState.CourseFound ||
                             (enrollUiState is EnrollUiState.Error && enrollUiState.course != null)
                     Button(
@@ -245,6 +274,10 @@ private fun EnrollStatusMessage(state: EnrollUiState) {
         is EnrollUiState.Enrolled -> Triple(
             Icons.Default.CheckCircle, SuccessColor, "Registro exitoso. El curso ya aparece en su lista."
         )
+        is EnrollUiState.PendingApproval -> Triple(
+            Icons.Default.Info, WarningColor,
+            "No figura en la lista de matriculados. Se envió su solicitud al docente; le avisaremos cuando la apruebe."
+        )
         is EnrollUiState.Error -> Triple(Icons.Default.Warning, ErrorColor, state.message)
         else -> return
     }
@@ -268,6 +301,7 @@ private fun EnrollUiState.courseOrNull(): StudentEnrollment? = when (this) {
     is EnrollUiState.AlreadyEnrolled -> course
     is EnrollUiState.Enrolling -> course
     is EnrollUiState.Enrolled -> course
+    is EnrollUiState.PendingApproval -> course
     is EnrollUiState.Error -> course
     else -> null
 }
@@ -316,6 +350,12 @@ private fun AddCourseDialogAlreadyEnrolledPreview() {
 @Composable
 private fun AddCourseDialogEnrolledPreview() {
     AddCourseDialog(EnrollUiState.Enrolled(previewCourse), {}, {}, {})
+}
+
+@Preview(name = "Pendiente de aprobación")
+@Composable
+private fun AddCourseDialogPendingPreview() {
+    AddCourseDialog(EnrollUiState.PendingApproval(previewCourse), {}, {}, {})
 }
 
 @Preview(name = "Error de red")

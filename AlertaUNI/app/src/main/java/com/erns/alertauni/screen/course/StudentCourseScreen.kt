@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,20 +17,27 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.erns.alertauni.R
 import com.erns.alertauni.data.model.StudentEnrollment
+import com.erns.alertauni.screen.utils.QrCodeScanner
 import com.erns.alertauni.screen.common.SearchBoxComponent
 import com.erns.alertauni.ui.theme.MyMutedForegroundColor
 import com.erns.alertauni.ui.theme.MySurfaceColor
@@ -43,7 +53,11 @@ fun StudentCourseScreen(
     val isLoadingCourses = viewModel.isLoadingCourses.collectAsState()
     val enrollUiState = viewModel.enrollUiState.collectAsState()
     val username = viewModel.username.collectAsState()
+    val isProfessor = viewModel.isProfessor.collectAsState()
+    val classCodeUiState = viewModel.classCodeUiState.collectAsState()
     val showAddDialog = rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val qrScanner = remember(context) { QrCodeScanner(context) }
 
     val onClickFloatingActionButton: () -> Unit = {
         viewModel.clearEnrollment()
@@ -70,15 +84,35 @@ fun StudentCourseScreen(
                 viewModel.clearEnrollment()
             },
             onClickFindCourse = { searchCode -> viewModel.findCourse(searchCode) },
-            onClickCourseEnroll = { viewModel.courseEnroll() }
+            onClickCourseEnroll = { viewModel.courseEnroll() },
+            onClickScanQr = {
+                qrScanner.scan(
+                    onResult = { viewModel.onQrScanned(it) },
+                    onCancel = { },
+                    onError = { viewModel.onScanError() }
+                )
+            }
         )
     }
+
+    ClassCodeDialog(
+        state = classCodeUiState.value,
+        onDismiss = { viewModel.closeClassCode() },
+        onRegenerate = { viewModel.regenerateClassCode() },
+        onEnrollmentOpenChange = { viewModel.setEnrollmentOpen(it) },
+        onRetry = {
+            (classCodeUiState.value as? CourseViewModel.ClassCodeUiState.Error)?.let {
+                viewModel.openClassCode(it.course)
+            }
+        }
+    )
 
     StudentCourseScreenLayout(
         username.value,
         "Cursos",
         studentEnrollmentListState.value,
-        isLoadingCourses.value
+        isLoadingCourses.value,
+        onClickClassCode = if (isProfessor.value) { course -> viewModel.openClassCode(course) } else null
     )
 }
 
@@ -87,7 +121,8 @@ fun StudentCourseScreenLayout(
     username: String,
     title: String,
     studentEnrollmentList: List<StudentEnrollment>,
-    isLoading: Boolean = false
+    isLoading: Boolean = false,
+    onClickClassCode: ((StudentEnrollment) -> Unit)? = null
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         SearchBoxComponent(username,title)
@@ -112,7 +147,7 @@ fun StudentCourseScreenLayout(
 
             else -> LazyColumn {
                 items(studentEnrollmentList, key = { it.course_catalog_id }) { studentEnrollment ->
-                    StudentEnrollmentCard(studentEnrollment)
+                    StudentEnrollmentCard(studentEnrollment, onClickClassCode)
                 }
             }
         }
@@ -121,12 +156,12 @@ fun StudentCourseScreenLayout(
 
 @Composable
 fun StudentEnrollmentCard(
-    studentEnrollment: StudentEnrollment
+    studentEnrollment: StudentEnrollment,
+    onClickClassCode: ((StudentEnrollment) -> Unit)? = null
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(160.dp)
             .padding(8.dp)
             .clickable(onClick = { }),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
@@ -134,7 +169,7 @@ fun StudentEnrollmentCard(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
         ) {
@@ -185,6 +220,21 @@ fun StudentEnrollmentCard(
                 color = MyMutedForegroundColor,
                 fontSize = 18.sp,
             )
+            // Sólo el docente comparte el código/QR de inscripción de su curso
+            if (onClickClassCode != null) {
+                FilledTonalButton(
+                    onClick = { onClickClassCode(studentEnrollment) },
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.outline_qr_code_scanner_24),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Código de inscripción")
+                }
+            }
 
 
         }

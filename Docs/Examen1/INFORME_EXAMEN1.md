@@ -243,7 +243,7 @@ stateDiagram-v2
 | `TextField(isError = ...)` | Resalta el campo ante código inválido | Patrón estándar de Material 3 para validación | – |
 | `SnackbarHostState.showSnackbar` en `LaunchedEffect` | Confirma el registro aun después de cerrar el diálogo | Mensaje no intrusivo y accesible | Se dispara al entrar al estado `Enrolled` |
 | Validación local (lista de inscripciones) | Detecta "ya registrado" sin llamar al servidor | Ahorra una petición y da un mensaje preciso | El servidor debe seguir validando (clave primaria en `student_enrollment`) |
-| `@Preview` por estado | Seis vistas previas del diálogo | Permite revisar cada estado sin backend y contrastarlo con el prototipo | – |
+| `@Preview` por estado | Una vista previa por estado del diálogo | Permite revisar cada estado sin backend y contrastarlo con el prototipo | – |
 
 **Integración con la arquitectura.** No se modificaron repositorios ni DataSources: el cambio se concentra en la capa de presentación, respetando las responsabilidades:
 
@@ -389,7 +389,7 @@ Archivos: `screen/notification/NotificationScreen.kt`, `screen/notification/Noti
 |---|---|---|
 | Corrección | `MainActivity.kt` | Una sola instancia de `MainAppNavigation` |
 | Mejora 1 | `CourseViewModel.kt` | `EnrollUiState`, validaciones, anti doble envío, detección de "ya registrado", mensajes de error |
-| Mejora 1 | `AddCourseDialog.kt` | Diálogo dirigido por estado, progreso, errores visibles, teclado con acción "buscar", 6 `@Preview` |
+| Mejora 1 | `AddCourseDialog.kt` | Diálogo dirigido por estado, progreso, errores visibles, teclado con acción "buscar", `@Preview` por estado |
 | Mejora 1 | `StudentCourseScreen.kt` | Estados de carga/vacío, Snackbar de confirmación, `rememberSaveable` |
 | Mejora 2 | `PostViewModel.kt` | `BoardUiState`, `refresh()`, eventos `SharedFlow`, recarga tras publicar |
 | Mejora 2 | `PostScreen.kt` | `PullToRefreshBox`, estados carga/vacío/error, tarjetas de altura flexible |

@@ -114,6 +114,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
     implementation("com.google.zxing:core:3.5.2")
+    // Escáner de QR de Google Play services: UI provista por el sistema, sin permiso de cámara
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 }
 
 configurations.all {

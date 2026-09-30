@@ -15,4 +15,5 @@ object ApiConstants {
     const val FIND_COURSE_CATALOG= "service-find-course-catalog"
     const val COURSE_ENROLL= "service-course-enroll"
     const val COURSE_STUDENT= "service-course-student"
+    const val CLASS_CODE = "service-course-class-code"
 }

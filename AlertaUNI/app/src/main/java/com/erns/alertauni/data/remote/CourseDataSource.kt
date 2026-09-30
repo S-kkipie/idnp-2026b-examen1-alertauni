@@ -1,8 +1,11 @@
 package com.erns.alertauni.data.remote
 
 import com.erns.alertauni.common.safeInvoke
+import com.erns.alertauni.data.model.ClassCodeActionRequest
+import com.erns.alertauni.data.model.ClassCodeInfo
 import com.erns.alertauni.data.model.CourseCatalogEntity
 import com.erns.alertauni.data.model.SupabaseListResponse
+import com.erns.alertauni.data.model.SupabaseSimpleResponse
 import com.erns.alertauni.data.remote.api.ApiConstants
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.functions.functions
@@ -16,6 +19,15 @@ class CourseDataSource@Inject constructor(
         val response = supabaseClient.functions.safeInvoke(ApiConstants.GET_COMMENTS,)
         if (response.status.value in 200..299) {
             return response.body<SupabaseListResponse<CourseCatalogEntity>>()
+        } else {
+            throw Exception("Failed to fetch: ${response.status}")
+        }
+    }
+
+    suspend fun callClassCodeEndpoint(request: ClassCodeActionRequest): SupabaseSimpleResponse<ClassCodeInfo> {
+        val response = supabaseClient.functions.safeInvoke(ApiConstants.CLASS_CODE, request)
+        if (response.status.value in 200..299) {
+            return response.body<SupabaseSimpleResponse<ClassCodeInfo>>()
         } else {
             throw Exception("Failed to fetch: ${response.status}")
         }
