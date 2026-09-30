@@ -104,7 +104,10 @@ fun StudentCourseScreen(
             (classCodeUiState.value as? CourseViewModel.ClassCodeUiState.Error)?.let {
                 viewModel.openClassCode(it.course)
             }
-        }
+        },
+        onApproveRequest = { viewModel.approveRequest(it) },
+        onRejectRequest = { viewModel.rejectRequest(it) },
+        onMessageShown = { viewModel.clearClassCodeMessage() }
     )
 
     StudentCourseScreenLayout(

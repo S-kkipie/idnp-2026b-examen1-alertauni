@@ -107,8 +107,8 @@ Leyenda: ✅ hecho · 🟡 parcial · ⬜ pendiente (lo hace el grupo)
 | Distintos estados de la pantalla | ✅ | `EnrollUiState` con 9 estados → `AddCourseDialog` |
 | Manejo de eventos de botones | ✅ | Buscar, escanear, registrarse, reintentar, regenerar, abrir/cerrar inscripción |
 | Respetar la arquitectura existente y separar responsabilidades | ✅ | UI → ViewModel (Hilt) → Repository → DataSource → Edge Function; informe §6 |
-| (extra) Backend del mecanismo híbrido | 🟡 | Migración SQL + `service-course-enroll` + `service-course-class-code`, **escritos pero no desplegados ni probados** contra Supabase |
-| Aprobar o rechazar solicitudes (docente) | 🟡 | Diseñado (pantalla 08) y modelado en la base de datos; **falta la pantalla y el endpoint** |
+| (extra) Backend del mecanismo híbrido | 🟡 | Migración SQL + `service-course-enroll`, `service-course-class-code` y `service-enrollment-requests`, **escritos pero no desplegados ni probados** contra Supabase |
+| Aprobar o rechazar solicitudes (docente) | ✅ | Sección "Solicitudes pendientes" en el diálogo del docente (`ClassCodeDialog`) + `service-enrollment-requests` (LIST/APPROVE/REJECT). El endpoint no está desplegado |
 
 ### 5. Entregables
 

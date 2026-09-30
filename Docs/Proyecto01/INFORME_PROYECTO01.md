@@ -213,21 +213,22 @@ Proyecto Stitch: *"AlertaUNI – Incorporación a curso (Proyecto 01)"*. Captura
 
 ## 6. Prototipo en Jetpack Compose (4.5)
 
-Parte implementada: **ingreso y validación del código, escaneo de QR, representación de todos los estados, confirmación del registro y la vista del docente para compartir el código**.
+Parte implementada: **ingreso y validación del código, escaneo de QR, representación de todos los estados, confirmación del registro, la vista del docente para compartir el código y la revisión (aprobar/rechazar) de solicitudes pendientes**.
 
 | Archivo | Contenido |
 |---|---|
 | `domain/course/JoinCode.kt` | Formato `alertauni://join?code=…`, `parse()` y `toQrContent()` |
 | `test/.../JoinCodeTest.kt` | 5 pruebas unitarias (código escrito, QR, parámetros extra, QR ajenos, entradas inválidas) |
-| `screen/course/CourseViewModel.kt` | `EnrollUiState` (9 estados) y `ClassCodeUiState`; `findCourse`, `onQrScanned`, `courseEnroll`, `openClassCode`, `regenerateClassCode`, `setEnrollmentOpen` |
+| `screen/course/CourseViewModel.kt` | `EnrollUiState` (9 estados) y `ClassCodeUiState`; `findCourse`, `onQrScanned`, `courseEnroll`, `openClassCode`, `regenerateClassCode`, `setEnrollmentOpen`, `approveRequest`, `rejectRequest` (con protección contra doble toque y actualización de contadores) |
 | `screen/course/AddCourseDialog.kt` | Diálogo del estudiante: botón *Escanear código QR*, campo con validación, resumen del curso, mensajes por estado; **7 `@Preview`** |
-| `screen/course/ClassCodeDialog.kt` | Diálogo del docente: QR (ZXing), código, copiar, compartir, regenerar, abrir/cerrar; **2 `@Preview`** |
+| `screen/course/ClassCodeDialog.kt` | Diálogo del docente: QR (ZXing), código, copiar, compartir, regenerar, abrir/cerrar y **solicitudes pendientes con aprobar/rechazar**; **2 `@Preview`** |
 | `screen/course/StudentCourseScreen.kt` | Conecta ViewModel, escáner y diálogos; botón *Código de inscripción* en la tarjeta del curso (sólo docente) |
 | `screen/utils/QrCodeScanner.kt` | Envoltura del Google code scanner |
-| `data/...` | `ClassCodeInfo`, `ClassCodeActionRequest`, `CourseEnrollResponse.status`, `CourseDataSource.callClassCodeEndpoint`, `CourseRepository.classCode` |
+| `data/...` | `ClassCodeInfo`, `ClassCodeActionRequest`, `EnrollmentRequest`, `CourseEnrollResponse.status`, `CourseDataSource`, `CourseRepository.classCode / getEnrollmentRequests / reviewEnrollmentRequest` |
 | `Backend/supabase/migrations/20260930000000_proyecto01_incorporacion.sql` | `class_code_expires_at`, `course_roster`, `enrollment_request`, políticas RLS |
 | `Backend/supabase/functions/service-course-enroll` | Validación completa y respuesta `ENROLLED` / `PENDING` |
 | `Backend/supabase/functions/service-course-class-code` | GET / REGENERATE / OPEN / CLOSE del código (sólo el docente del curso) |
+| `Backend/supabase/functions/service-enrollment-requests` | LIST / APPROVE / REJECT de solicitudes pendientes (sólo el docente del curso); al aprobar inscribe al estudiante |
 
 **Separación de responsabilidades**
 
@@ -271,7 +272,7 @@ flowchart LR
 | 05 Pendiente de aprobación | `PendingApproval` | `AddCourseDialogPendingPreview` |
 | 06 Registro exitoso | `Enrolled` | `AddCourseDialogEnrolledPreview` |
 | 07 Error de red | `Error` | `AddCourseDialogErrorPreview` |
-| 08 Docente: código | `ClassCodeUiState.Ready` | `ClassCodeDialogReadyPreview`, `ClassCodeDialogClosedPreview` |
+| 08 Docente: código y solicitudes | `ClassCodeUiState.Ready` (`requests`, `reviewingIds`) | `ClassCodeDialogReadyPreview`, `ClassCodeDialogClosedPreview` |
 
 **Exportar de Stitch a Figma**
 1. Abrir el proyecto en [stitch.withgoogle.com](https://stitch.withgoogle.com) (*AlertaUNI – Incorporación a curso (Proyecto 01)*).

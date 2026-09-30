@@ -56,3 +56,18 @@ create policy "docente revisa solicitudes de su curso" on public.enrollment_requ
                 where c.course_catalog_id = enrollment_request.course_catalog_id
                   and c.professor_id = auth.uid())
     );
+
+-- 5. Vista para que el docente vea el nombre de quien solicita
+--    (security_invoker: respeta las políticas RLS de quien consulta)
+create or replace view public.enrollment_request_view
+with (security_invoker = true) as
+select r.request_id,
+       r.course_catalog_id,
+       r.student_id,
+       r.email,
+       p.firstname,
+       p.surname,
+       r.status,
+       r.created_at
+from public.enrollment_request r
+left join public.user_profile p on p.user_profile_id = r.student_id;

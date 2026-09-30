@@ -9,6 +9,7 @@ import com.erns.alertauni.data.model.ClassCodeInfo
 import com.erns.alertauni.data.model.ClassCodeRequest
 import com.erns.alertauni.data.model.CourseEnrollRequest
 import com.erns.alertauni.data.model.CourseEnrollResponse
+import com.erns.alertauni.data.model.EnrollmentRequest
 import com.erns.alertauni.data.model.StudentEnrollment
 import com.erns.alertauni.data.repository.CourseRepository
 import com.erns.alertauni.data.repository.StudentRepository
@@ -53,7 +54,11 @@ class CourseViewModel @Inject constructor(
         data class Ready(
             val course: StudentEnrollment,
             val info: ClassCodeInfo,
-            val isUpdating: Boolean = false
+            val isUpdating: Boolean = false,
+            val requests: List<EnrollmentRequest> = emptyList(),
+            val isLoadingRequests: Boolean = true,
+            val reviewingIds: Set<Long> = emptySet(),
+            val message: String? = null
         ) : ClassCodeUiState()
 
         data class Error(val course: StudentEnrollment, val message: String) : ClassCodeUiState()
@@ -211,16 +216,87 @@ class CourseViewModel @Inject constructor(
         viewModelScope.launch {
             courseRepository.classCode(ClassCodeActionRequest(course.course_catalog_id, action))
                 .onSuccess { info ->
-                    _classCodeUiState.value = ClassCodeUiState.Ready(course, info)
+                    val previous = _classCodeUiState.value as? ClassCodeUiState.Ready
+                    _classCodeUiState.value = previous?.copy(info = info, isUpdating = false)
+                        ?: ClassCodeUiState.Ready(course, info)
+                    if (previous == null) loadEnrollmentRequests(course)
                 }.onFailure {
                     Log.d(TAG, it.message.toString())
-                    _classCodeUiState.value = ClassCodeUiState.Error(
-                        course,
-                        if (it is BackendException) it.errorData.message
-                        else "No se pudo obtener el código del curso."
-                    )
+                    val message = if (it is BackendException) it.errorData.message
+                    else "No se pudo obtener el código del curso."
+                    val previous = _classCodeUiState.value as? ClassCodeUiState.Ready
+                    // Si falla una acción (regenerar, abrir/cerrar) se conserva lo ya mostrado
+                    _classCodeUiState.value = previous?.copy(isUpdating = false, message = message)
+                        ?: ClassCodeUiState.Error(course, message)
                 }
         }
+    }
+
+    // Solicitudes de estudiantes que no figuran en la lista oficial
+
+    private fun loadEnrollmentRequests(course: StudentEnrollment) {
+        viewModelScope.launch {
+            val result = courseRepository.getEnrollmentRequests(course.course_catalog_id)
+            updateReady { state ->
+                result.fold(
+                    onSuccess = { state.copy(requests = it, isLoadingRequests = false) },
+                    onFailure = {
+                        Log.d(TAG, it.message.toString())
+                        state.copy(
+                            isLoadingRequests = false,
+                            message = "No se pudieron cargar las solicitudes pendientes"
+                        )
+                    }
+                )
+            }
+        }
+    }
+
+    fun approveRequest(request: EnrollmentRequest) = reviewRequest(request, approve = true)
+
+    fun rejectRequest(request: EnrollmentRequest) = reviewRequest(request, approve = false)
+
+    private fun reviewRequest(request: EnrollmentRequest, approve: Boolean) {
+        val state = _classCodeUiState.value as? ClassCodeUiState.Ready ?: return
+        if (request.requestId in state.reviewingIds) return // evita doble toque
+        _classCodeUiState.value = state.copy(reviewingIds = state.reviewingIds + request.requestId)
+
+        viewModelScope.launch {
+            val result = courseRepository.reviewEnrollmentRequest(
+                request.courseCatalogId, request.requestId, approve
+            )
+            updateReady { current ->
+                val reviewing = current.reviewingIds - request.requestId
+                result.fold(
+                    onSuccess = {
+                        current.copy(
+                            requests = current.requests.filterNot { it.requestId == request.requestId },
+                            reviewingIds = reviewing,
+                            info = current.info.copy(
+                                pendingCount = (current.info.pendingCount - 1).coerceAtLeast(0),
+                                enrolledCount = current.info.enrolledCount + if (approve) 1 else 0
+                            ),
+                            message = if (approve) "${request.displayName} fue incorporado al curso"
+                            else "Solicitud de ${request.displayName} rechazada"
+                        )
+                    },
+                    onFailure = {
+                        Log.d(TAG, it.message.toString())
+                        current.copy(
+                            reviewingIds = reviewing,
+                            message = "No se pudo procesar la solicitud. Intente nuevamente."
+                        )
+                    }
+                )
+            }
+        }
+    }
+
+    fun clearClassCodeMessage() = updateReady { it.copy(message = null) }
+
+    private inline fun updateReady(transform: (ClassCodeUiState.Ready) -> ClassCodeUiState.Ready) {
+        val state = _classCodeUiState.value as? ClassCodeUiState.Ready ?: return
+        _classCodeUiState.value = transform(state)
     }
 
     // endregion

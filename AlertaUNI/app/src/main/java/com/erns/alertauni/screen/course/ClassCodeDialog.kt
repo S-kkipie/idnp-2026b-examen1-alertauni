@@ -11,7 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
@@ -25,6 +28,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +45,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.erns.alertauni.data.model.ClassCodeInfo
+import com.erns.alertauni.data.model.EnrollmentRequest
 import com.erns.alertauni.domain.course.JoinCode
 import com.erns.alertauni.screen.course.CourseViewModel.ClassCodeUiState
 import com.erns.alertauni.ui.theme.MyMutedForegroundColor
@@ -49,6 +54,7 @@ import com.erns.alertauni.ui.theme.MySurfaceColor
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
+import kotlinx.coroutines.delay
 
 /**
  * Diálogo del docente para compartir el código de inscripción de su curso:
@@ -60,7 +66,10 @@ fun ClassCodeDialog(
     onDismiss: () -> Unit,
     onRegenerate: () -> Unit,
     onEnrollmentOpenChange: (Boolean) -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onApproveRequest: (EnrollmentRequest) -> Unit = {},
+    onRejectRequest: (EnrollmentRequest) -> Unit = {},
+    onMessageShown: () -> Unit = {}
 ) {
     if (state is ClassCodeUiState.Hidden) return
     val course = when (state) {
@@ -115,10 +124,12 @@ fun ClassCodeDialog(
                 }
 
                 is ClassCodeUiState.Ready -> ClassCodeContent(
-                    info = state.info,
-                    isUpdating = state.isUpdating,
+                    state = state,
                     onRegenerate = onRegenerate,
-                    onEnrollmentOpenChange = onEnrollmentOpenChange
+                    onEnrollmentOpenChange = onEnrollmentOpenChange,
+                    onApproveRequest = onApproveRequest,
+                    onRejectRequest = onRejectRequest,
+                    onMessageShown = onMessageShown
                 )
 
                 ClassCodeUiState.Hidden -> Unit
@@ -131,11 +142,24 @@ fun ClassCodeDialog(
 
 @Composable
 private fun ClassCodeContent(
-    info: ClassCodeInfo,
-    isUpdating: Boolean,
+    state: ClassCodeUiState.Ready,
     onRegenerate: () -> Unit,
-    onEnrollmentOpenChange: (Boolean) -> Unit
+    onEnrollmentOpenChange: (Boolean) -> Unit,
+    onApproveRequest: (EnrollmentRequest) -> Unit,
+    onRejectRequest: (EnrollmentRequest) -> Unit,
+    onMessageShown: () -> Unit
 ) {
+    val info = state.info
+    val isUpdating = state.isUpdating
+
+    // El mensaje de resultado se muestra dentro del diálogo y desaparece solo
+    LaunchedEffect(state.message) {
+        if (state.message != null) {
+            delay(3_000)
+            onMessageShown()
+        }
+    }
+
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val qrContent = JoinCode.toQrContent(info.classCode)
@@ -143,10 +167,21 @@ private fun ClassCodeContent(
     val qrBitmap = remember(qrContent) { generateQrBitmap(qrContent, 512) }
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        state.message?.let {
+            Text(
+                text = it,
+                fontSize = 13.sp,
+                color = MyPrimaryColor,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
         Box(contentAlignment = Alignment.Center) {
             Image(
                 bitmap = qrBitmap,
@@ -228,8 +263,100 @@ private fun ClassCodeContent(
                 enabled = !isUpdating
             )
         }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+        PendingRequestsSection(
+            requests = state.requests,
+            isLoading = state.isLoadingRequests,
+            reviewingIds = state.reviewingIds,
+            onApprove = onApproveRequest,
+            onReject = onRejectRequest
+        )
     }
 }
+
+@Composable
+private fun PendingRequestsSection(
+    requests: List<EnrollmentRequest>,
+    isLoading: Boolean,
+    reviewingIds: Set<Long>,
+    onApprove: (EnrollmentRequest) -> Unit,
+    onReject: (EnrollmentRequest) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = "Solicitudes pendientes (${requests.size})",
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = "Estudiantes que usaron el código pero no figuran en la lista de matriculados.",
+            fontSize = 12.sp,
+            color = MyMutedForegroundColor
+        )
+        when {
+            isLoading -> CircularProgressIndicator(
+                modifier = Modifier
+                    .size(24.dp)
+                    .align(Alignment.CenterHorizontally)
+            )
+
+            requests.isEmpty() -> Text(
+                text = "No hay solicitudes por revisar.",
+                fontSize = 13.sp,
+                color = MyMutedForegroundColor
+            )
+
+            // Pocas filas dentro de un diálogo con scroll: Column en lugar de LazyColumn
+            else -> requests.forEach { request ->
+                PendingRequestRow(
+                    request = request,
+                    isReviewing = request.requestId in reviewingIds,
+                    onApprove = { onApprove(request) },
+                    onReject = { onReject(request) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PendingRequestRow(
+    request: EnrollmentRequest,
+    isReviewing: Boolean,
+    onApprove: () -> Unit,
+    onReject: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(request.displayName, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            Text(request.email, fontSize = 12.sp, color = MyMutedForegroundColor)
+        }
+        if (isReviewing) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+        } else {
+            IconButton(onClick = onReject) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "Rechazar a ${request.displayName}",
+                    tint = RejectColor
+                )
+            }
+            IconButton(onClick = onApprove) {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = "Aprobar a ${request.displayName}",
+                    tint = ApproveColor
+                )
+            }
+        }
+    }
+}
+
+private val ApproveColor = androidx.compose.ui.graphics.Color(0xFF15803D)
+private val RejectColor = androidx.compose.ui.graphics.Color(0xFFB91C1C)
 
 /** Genera la imagen del QR con ZXing (dependencia ya incluida en el proyecto). */
 fun generateQrBitmap(content: String, sizePx: Int): ImageBitmap {
@@ -270,17 +397,35 @@ private val previewProfessorCourse = com.erns.alertauni.data.model.StudentEnroll
     email = "docente@unsa.edu.pe"
 )
 
-@Preview(name = "Docente - código listo")
+private val previewRequests = listOf(
+    EnrollmentRequest(1, "IDNP-2026B-A", "u1", "cramosm@unsa.edu.pe", "Carlos", "Ramos Mendoza"),
+    EnrollmentRequest(2, "IDNP-2026B-A", "u2", "lparedess@unsa.edu.pe", "Lucía", "Paredes Soto")
+)
+
+@Preview(name = "Docente - código listo", heightDp = 900)
 @Composable
 private fun ClassCodeDialogReadyPreview() {
-    ClassCodeDialog(ClassCodeUiState.Ready(previewProfessorCourse, previewInfo), {}, {}, {}, {})
+    ClassCodeDialog(
+        ClassCodeUiState.Ready(
+            previewProfessorCourse,
+            previewInfo,
+            requests = previewRequests,
+            isLoadingRequests = false,
+            reviewingIds = setOf(2L)
+        ),
+        {}, {}, {}, {}
+    )
 }
 
 @Preview(name = "Docente - inscripción cerrada")
 @Composable
 private fun ClassCodeDialogClosedPreview() {
     ClassCodeDialog(
-        ClassCodeUiState.Ready(previewProfessorCourse, previewInfo.copy(enabled = false)),
+        ClassCodeUiState.Ready(
+            previewProfessorCourse,
+            previewInfo.copy(enabled = false, pendingCount = 0),
+            isLoadingRequests = false
+        ),
         {}, {}, {}, {}
     )
 }

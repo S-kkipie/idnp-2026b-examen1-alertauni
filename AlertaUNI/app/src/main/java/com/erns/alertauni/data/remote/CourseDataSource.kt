@@ -4,6 +4,9 @@ import com.erns.alertauni.common.safeInvoke
 import com.erns.alertauni.data.model.ClassCodeActionRequest
 import com.erns.alertauni.data.model.ClassCodeInfo
 import com.erns.alertauni.data.model.CourseCatalogEntity
+import com.erns.alertauni.data.model.EnrollmentRequest
+import com.erns.alertauni.data.model.EnrollmentRequestAction
+import com.erns.alertauni.data.model.EnrollmentRequestReview
 import com.erns.alertauni.data.model.SupabaseListResponse
 import com.erns.alertauni.data.model.SupabaseSimpleResponse
 import com.erns.alertauni.data.remote.api.ApiConstants
@@ -28,6 +31,24 @@ class CourseDataSource@Inject constructor(
         val response = supabaseClient.functions.safeInvoke(ApiConstants.CLASS_CODE, request)
         if (response.status.value in 200..299) {
             return response.body<SupabaseSimpleResponse<ClassCodeInfo>>()
+        } else {
+            throw Exception("Failed to fetch: ${response.status}")
+        }
+    }
+
+    suspend fun callEnrollmentRequestsEndpoint(request: EnrollmentRequestAction): SupabaseListResponse<EnrollmentRequest> {
+        val response = supabaseClient.functions.safeInvoke(ApiConstants.ENROLLMENT_REQUESTS, request)
+        if (response.status.value in 200..299) {
+            return response.body<SupabaseListResponse<EnrollmentRequest>>()
+        } else {
+            throw Exception("Failed to fetch: ${response.status}")
+        }
+    }
+
+    suspend fun callReviewEnrollmentRequestEndpoint(request: EnrollmentRequestAction): SupabaseSimpleResponse<EnrollmentRequestReview> {
+        val response = supabaseClient.functions.safeInvoke(ApiConstants.ENROLLMENT_REQUESTS, request)
+        if (response.status.value in 200..299) {
+            return response.body<SupabaseSimpleResponse<EnrollmentRequestReview>>()
         } else {
             throw Exception("Failed to fetch: ${response.status}")
         }
