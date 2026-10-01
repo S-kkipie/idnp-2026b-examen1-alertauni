@@ -178,3 +178,30 @@ sequenceDiagram
 #### F12 – Sesión
 - `DataStoreHelper` (Preferences DataStore, `@Singleton`) persiste perfil y preferencias. `SessionRepository` + `CryptoManager` implementan cifrado AES/GCM con **Android Keystore** para tokens, pero no están conectados al flujo actual.
 
+### 1.4 Hallazgos del análisis (defectos, código muerto y riesgos)
+
+Identificar estas situaciones forma parte de comprender el aplicativo. El punto 2 **propone** cómo resolver las de mayor impacto; sólo H1, H5 y H6 se corrigieron porque el prototipo del punto 3 los necesita para funcionar.
+
+| # | Hallazgo | Ubicación | Impacto | Estado |
+|---|---|---|---|---|
+| H1 | `MainAppNavigation()` se llamaba **dos veces** (dentro y fuera del `Scaffold`) → dos `NavHost` y dos pantallas de login superpuestas | `MainActivity.kt` | Alto (UI duplicada, doble ViewModel) | Corregido (necesario para el prototipo del punto 3) |
+| H2 | Al publicar un anuncio la lista **no se refresca**; no hay estado de carga, vacío ni error; un curso sin anuncios se trataba como error (`"No posts found"`) | `PostViewModel`, `PostRepositoryImpl` | Medio | Propuesta (Mejora 2) |
+| H3 | Unirse a curso: sin indicador de carga, errores silenciosos (sólo `Log`), el código escrito se borra, se puede pulsar "Registrarme" sin curso, no detecta "ya registrado" | `AddCourseDialog`, `CourseViewModel` | Alto (flujo crítico) | Propuesta (Mejora 1)¹ |
+| H4 | El FAB de "Posts" y "Cursos" aparece para **ambos roles** (un estudiante podía abrir "Nuevo anuncio" y un docente "Agregar curso") | `MainMenuScreen` | Medio | Propuesta (Mejora 2)¹ |
+| H5 | Android 13+ requiere el permiso `POST_NOTIFICATIONS` en tiempo de ejecución; no estaba declarado ni solicitado (`targetSdk = 36`) | `AndroidManifest.xml` | Alto (no se ven notificaciones) | Corregido (parte del prototipo del punto 3) |
+| H6 | `MiFirebaseService` construía una **nueva base Room por cada mensaje** y usaba `CoroutineScope` sin cancelar | `MiFirebaseService` | Medio (recursos) | Corregido (parte del prototipo del punto 3) |
+| H7 | `CourseDataSource` invoca `GET_COMMENTS` en lugar del catálogo de cursos | `CourseDataSource.kt` | Bajo (no se usa) | Documentado |
+| H8 | "Recordar cuenta" se guarda pero nunca se lee (`checkSession2` es privado y no se invoca); `init` borra `userType` en cada inicio | `LoginViewModel` | Medio | Documentado |
+| H9 | Nombre del docente **fijo** ("Ernesto Suarez") en la cabecera de Contactos | `TeacherContactScreen` | Bajo | Documentado |
+| H10 | `StudentContactScreen` está vacía | `StudentContactScreen.kt` | Medio | Propuesta (punto 3) |
+| H11 | `UserInitialCircle` genera un color aleatorio **en cada recomposición** (parpadeo) | `UserInitialCircle.kt` | Bajo | Documentado |
+| H12 | Código heredado sin uso: `AppNavigation`, `HomeScreen`, APIs Retrofit, `AuthInterceptor`, `FirebaseTokenProvider`, `ResourceState` | varios | Mantenibilidad | Documentado |
+| H13 | **Seguridad**: el propio usuario elige su rol "Docente" en `service-update-profile`; cualquier cuenta podría declararse docente | Backend | Alto | Propuesta |
+| H14 | `service-course-student` no verifica que quien consulta sea el docente del curso (exposición de datos de estudiantes) | Backend | Alto | Propuesta |
+| H15 | `service-post-add` referencia `courseCatalogIDs` sin declararlo y su `catch` usa `error` en vez de `err` → la función falla; `service-comments` desestructura `dbError` (inexistente) | Backend | Alto | Documentado |
+| H16 | Faltan en el repositorio `service-student-enrollment`, `service-course-enroll` y `service-comment-add-private` | Backend | – | Documentado |
+
+¹ El flujo de incorporación a un curso (H3) y el botón "+" de Cursos sólo para estudiantes se implementaron después como parte de otro entregable, el **Proyecto Integrador – Parte 1** (`Docs/Proyecto01`), no como parte de este examen.
+
+---
+
