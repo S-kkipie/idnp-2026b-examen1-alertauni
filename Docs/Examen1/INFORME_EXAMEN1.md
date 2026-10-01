@@ -454,3 +454,17 @@ Archivos del prototipo: `MainActivity.kt` (H1), `screen/notification/Notificatio
 
 ---
 
+## 5. Guía para la sustentación
+
+Preguntas probables y dónde está la respuesta:
+
+- *¿Por qué `StateFlow` y no `mutableStateOf` en el ViewModel?* → El ViewModel no depende de Compose; `StateFlow` es observable desde cualquier capa y se convierte en estado de Compose con `collectAsState()` (§1.1).
+- *¿Qué diferencia hay entre `remember` y `rememberSaveable`?* → `rememberSaveable` sobrevive a rotación/muerte del proceso guardando en `Bundle` (Mejora 1).
+- *¿Por qué `SharedFlow` para el Snackbar?* → Es un evento de un solo disparo; un `StateFlow` lo repetiría (Mejora 2).
+- *¿Cómo llega `postId` al ViewModel de comentarios?* → Argumento de la ruta `comment/{postId}` → `SavedStateHandle` (F6).
+- *¿Cómo se decide qué anuncios ve cada usuario?* → `service-posts` + `get_posts_fun(course_ids, receiver_sender)` (F4, F7).
+- *¿Qué hace Hilt aquí?* → Provee `SupabaseClient`, `DataStoreHelper`, `AppDatabase` como singletons y enlaza interfaces de repositorio con `@Binds` (§1.1, P1).
+- *¿Qué limitaciones tiene la bandeja?* → Mensajes *notification* en segundo plano, historial local (§3, restricciones).
+- *¿Por qué no implementaron las mejoras del punto 2?* → El enunciado pide analizarlas y proponerlas; se justificó cada una con problema, comportamiento esperado, recursos e integración (§2).
+- *¿Por qué la bandeja está incompleta?* → Implementación parcial deliberada: se probó la parte de mayor riesgo (FCM → Room → Compose); lo demás es incremental (§3, alcance del prototipo).
+- *¿Qué riesgos de seguridad encontraron?* → Rol autodeclarado y consulta de estudiantes sin autorización (H13, H14).
