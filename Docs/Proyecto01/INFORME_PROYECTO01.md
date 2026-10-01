@@ -163,3 +163,30 @@ stateDiagram-v2
 ```
 
 ---
+
+## 4. Prototipo de interfaces (4.3)
+
+Diseñado en **Google Stitch** con el sistema de diseño de la app (Material 3, primario `#1E3A8A`, esquinas 8 dp) y exportado a **[Figma](https://www.figma.com/design/AqF2iVRnerwYnCzoP5dmRH/Untitled?node-id=0-1&t=vNiKA47BuQ6gfWBF-1)** (ver §8). Se diseñaron **sólo las pantallas y estados del proceso de incorporación**, no toda la aplicación.
+
+Proyecto Stitch: *"AlertaUNI – Incorporación a curso (Proyecto 01)"*. Capturas en [`stitch/`](stitch/).
+
+| # | Pantalla / estado | Situación del enunciado | Captura |
+|---|---|---|---|
+| 01 | Unirse a un curso (inicial: QR o código) | Ingreso de información | *en el proyecto Stitch* |
+| 09 | Escáner QR + verificando | Espera o procesamiento | *en el proyecto Stitch* |
+| 02 | Confirmar inscripción (curso encontrado, matriculado) | Ingreso / confirmación | ![](stitch/02-confirmar-inscripcion.png) |
+| 03 | Código inválido | Código inválido | ![](stitch/03-codigo-invalido.png) |
+| 04 | Ya estás registrado (bottom sheet) | Estudiante ya registrado | ![](stitch/04-ya-registrado.png) |
+| 05 | Solicitud pendiente de aprobación | No matriculado (validación) | ![](stitch/05-pendiente-aprobacion.png) |
+| 06 | Registro exitoso | Registro exitoso | ![](stitch/06-registro-exitoso.png) |
+| 07 | Error de red al confirmar | Error durante el proceso | ![](stitch/07-error-de-red.png) |
+| 08 | Docente: código de inscripción (QR, compartir, abrir/cerrar, solicitudes) | Acciones del docente | ![](stitch/08-docente-codigo-inscripcion.png) |
+
+**Decisiones de UX**
+- El QR es la **acción principal** (tarjeta destacada) y el código es la alternativa: el QR elimina errores de tipeo.
+- Los errores se muestran **junto al campo** (`isError` + texto de soporte) y con **sugerencias concretas** (confusión 0/O, código vencido, probar con QR).
+- "Ya registrado" usa un **bottom sheet informativo** (no es un error) con acceso directo al curso.
+- "Pendiente" usa un **stepper** para que el estudiante entienda que el proceso continúa y quién debe actuar.
+- El error de red conserva el curso encontrado y ofrece **Reintentar** (no obliga a empezar de nuevo).
+
+---
