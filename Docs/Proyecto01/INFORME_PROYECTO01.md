@@ -81,3 +81,85 @@ Escala 1 (muy desfavorable) a 5 (muy favorable). Los pesos priorizan el **contro
 5. **Es viable** con la arquitectura actual: reutiliza `service-find-course-catalog`, `course_catalog.class_code` y `class_code_enable` que ya existían.
 
 ---
+
+## 3. Flujo de registro (4.2)
+
+### Flujo completo (actividad con carriles)
+
+```mermaid
+flowchart TB
+    subgraph DOC["Docente"]
+        D1["Abre Cursos → 'Código de inscripción'"] --> D2["Proyecta el QR / comparte el código"]
+        D9["Recibe solicitud pendiente"] --> D10{"¿Aprueba?"}
+    end
+    subgraph EST["Estudiante"]
+        E1["Cursos → botón +"] --> E2{"¿Cómo se une?"}
+        E2 -- "Escanear QR" --> E3["Escáner de Google (Play services)"]
+        E2 -- "Escribir código" --> E4["Ingresa código"]
+        E6["Ve curso encontrado<br/>(docente, grupo, semestre)"] --> E7["Toca 'Registrarme'"]
+    end
+    subgraph APP["App (CourseViewModel)"]
+        A1{"JoinCode.parse:<br/>¿formato válido?"}
+        A2["Estado: Searching"]
+        A3{"¿Ya está en<br/>mi lista de cursos?"}
+    end
+    subgraph SRV["Servidor (Edge Functions)"]
+        S1{"service-find-course-catalog:<br/>¿código existe y abierto?"}
+        S2{"service-course-enroll:<br/>¿vigente? ¿ya inscrito?"}
+        S3{"¿Figura en<br/>course_roster?"}
+        S4["Inserta student_enrollment<br/>status = ENROLLED"]
+        S5["Crea enrollment_request<br/>status = PENDING"]
+    end
+    D2 -.-> E1
+    E3 --> A1
+    E4 --> A1
+    A1 -- "No" --> X1["❌ Código inválido<br/>(mensaje + sugerencias)"]
+    A1 -- "Sí" --> A2 --> S1
+    S1 -- "No / sin red" --> X2["❌ No encontrado o<br/>inscripción cerrada"]
+    S1 -- "Sí" --> A3
+    A3 -- "Sí" --> X3["ℹ️ Ya registrado"]
+    A3 -- "No" --> E6
+    E7 --> S2
+    S2 -- "Error de red" --> X4["⚠️ Error + Reintentar"]
+    S2 -- "Cerrado/vencido" --> X2
+    S2 -- "Ya inscrito" --> X3
+    S2 -- "OK" --> S3
+    S3 -- "Sí" --> S4 --> OK["✅ Registro exitoso<br/>(Snackbar + curso en la lista)"]
+    S3 -- "No" --> S5 --> P["⏳ Pendiente de aprobación"]
+    S5 -.-> D9
+    D10 -- "Sí" --> S4
+    D10 -- "No" --> R["Solicitud rechazada<br/>(aviso al estudiante)"]
+```
+
+### Respuestas a lo que pide el enunciado
+
+| Punto del flujo | Diseño |
+|---|---|
+| **Cómo inicia** | Estudiante: pestaña *Cursos* → botón **+**. Docente: tarjeta del curso → **Código de inscripción** (lo muestra, proyecta o comparte). |
+| **Qué información proporciona / recibe el estudiante** | Proporciona el código (escaneado o escrito); su identidad (email institucional) la aporta la sesión de Google, no la escribe. Recibe: código, nombre del curso, docente, tipo, grupo, semestre y, al final, el resultado. |
+| **Acciones del docente** | Ver/proyectar/copiar/compartir el código; **regenerarlo**; **abrir/cerrar** la inscripción; **aprobar o rechazar** solicitudes de no matriculados. |
+| **Cómo se valida** | 1) En la app: formato con `JoinCode.parse` y "ya registrado" contra la lista local. 2) En el servidor: código existente, inscripción abierta y **no vencida**, alumno no inscrito, rol = estudiante, y **pertenencia a `course_roster`**. |
+| **Registro exitoso** | Se inserta en `student_enrollment`, la lista de cursos se recarga, se muestra "Registro exitoso" y un Snackbar; el alumno ya ve los anuncios del curso. |
+| **Error o no completado** | Código inválido (formato o inexistente/cerrado), ya registrado, pendiente de aprobación, error de red con **Reintentar** (sin perder el curso encontrado), escáner no disponible → ingreso manual. |
+
+### Estados de la interfaz (máquina de estados)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Searching: buscar / QR leído
+    Idle --> NotFound: formato inválido
+    Searching --> CourseFound
+    Searching --> AlreadyEnrolled
+    Searching --> NotFound
+    CourseFound --> Enrolling: Registrarme
+    Enrolling --> Enrolled: status = ENROLLED
+    Enrolling --> PendingApproval: status = PENDING
+    Enrolling --> Error: red / servidor
+    Error --> Enrolling: Reintentar
+    NotFound --> Searching: corregir / reescanear
+    Enrolled --> [*]
+    PendingApproval --> [*]
+```
+
+---
