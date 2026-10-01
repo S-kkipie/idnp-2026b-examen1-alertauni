@@ -190,3 +190,59 @@ Proyecto Stitch: *"AlertaUNI – Incorporación a curso (Proyecto 01)"*. Captura
 - El error de red conserva el curso encontrado y ofrece **Reintentar** (no obliga a empezar de nuevo).
 
 ---
+
+## 5. Recursos de Android y Jetpack Compose (4.4)
+
+| Recurso | Función | Dónde se usa | Por qué es apropiado | Restricciones / limitaciones |
+|---|---|---|---|---|
+| **`sealed class EnrollUiState`** | Modelar todos los estados del proceso | `CourseViewModel` → `AddCourseDialog` | Estados mutuamente excluyentes; el `when` exhaustivo obliga a representar cada uno en la UI (misma lista que las pantallas de Figma) | Agregar un estado exige actualizar la UI (el compilador lo señala) |
+| **`ViewModel` + `StateFlow`** (`@HiltViewModel`) | Fuente única de verdad; lógica de validación y llamadas | `CourseViewModel` | Sobrevive a rotaciones; separa la lógica de la UI; testeable | El estado no sobrevive a la muerte del proceso (aceptable: se vuelve a `Idle`) |
+| **`collectAsState()`** | Convertir el flujo en estado de Compose | `StudentCourseScreen` | Recomposición automática y sólo cuando cambia el estado | – |
+| **`rememberSaveable`** | Texto del código y diálogo abierto | `AddCourseDialog`, `StudentCourseScreen` | Conserva lo escrito tras rotación o cambio de app | Sólo tipos guardables en `Bundle` |
+| **Eventos como lambdas** (UDF) | `onClickFindCourse`, `onClickScanQr`, `onClickCourseEnroll`, `onRegenerate`… | Diálogos → ViewModel | La UI no conoce repositorios; permite `@Preview` con lambdas vacías | – |
+| **`AlertDialog`, `TextField(isError)`, `KeyboardOptions(imeAction = Search, capitalization = Characters)`** | Ingreso y validación visual del código | `AddCourseDialog` | Componentes Material 3 estándar; acción "buscar" en el teclado; mayúsculas para códigos | La capitalización es sugerencia del teclado |
+| **`CircularProgressIndicator`, `Snackbar`** | Espera y confirmación | Diálogo y pantalla de cursos | Retroalimentación no bloqueante | – |
+| **Google code scanner** (`play-services-code-scanner`, `GmsBarcodeScanning`) | Leer el QR | `screen/utils/QrCodeScanner.kt` | **No requiere permiso de cámara** ni implementar visor: la UI la provee Play services; menor código y superficie de errores | Requiere Google Play services; el módulo se descarga (se declara `com.google.mlkit.vision.DEPENDENCIES = barcode_ui` para anticiparlo). Alternativa descartada: **CameraX + ML Kit**, más control visual pero exige permiso `CAMERA`, manejo del ciclo de vida de la cámara y más código |
+| **ZXing (`QRCodeWriter`)** | Generar el QR del docente | `ClassCodeDialog.generateQrBitmap` | Ya era dependencia del proyecto; genera el QR localmente sin red | El bitmap se genera en el hilo de UI; se memoriza con `remember(qrContent)` para no recalcularlo en cada recomposición |
+| **`LocalClipboardManager`, `Intent.ACTION_SEND`** | Copiar y compartir el código | `ClassCodeDialog` | Reutiliza apps del sistema (correo, aula virtual) sin integrar SDKs | – |
+| **`Switch`, `FilledTonalButton`** | Abrir/cerrar inscripción, regenerar | `ClassCodeDialog` | Controles Material 3 para ajustes binarios y acciones secundarias | – |
+| **`JoinCode` (dominio)** | Formato único del código y del QR; validación | `domain/course/JoinCode.kt` | Una sola regla para QR y texto; pura Kotlin → **pruebas unitarias JVM** | – |
+| **Repositorio + DataSource** (`StudentRepository`, `CourseRepository`) | Acceso a Edge Functions | `data/` | Mantiene la arquitectura existente; `Result<T>` y `BackendException` para errores de negocio | – |
+| **Supabase Edge Functions + RLS** | Validación autoritativa | `service-course-enroll`, `service-course-class-code`, migración SQL | La validación de pertenencia y vencimiento **debe** ocurrir en el servidor; RLS restringe qué filas ve cada usuario | Los errores de negocio se devuelven con estado 404/401 para que `safeInvoke` los convierta en `BackendException` |
+| **Navegación** | No se agregan rutas: el flujo ocurre en diálogos dentro de la pestaña *Cursos* | `MainMenuScreen` | Mantiene el contexto; el FAB sólo aparece para el estudiante | Un flujo más largo podría migrar a rutas dedicadas |
+
+---
+
+## 6. Prototipo en Jetpack Compose (4.5)
+
+Parte implementada: **ingreso y validación del código, escaneo de QR, representación de todos los estados, confirmación del registro, la vista del docente para compartir el código y la revisión (aprobar/rechazar) de solicitudes pendientes**.
+
+| Archivo | Contenido |
+|---|---|
+| `domain/course/JoinCode.kt` | Formato `alertauni://join?code=…`, `parse()` y `toQrContent()` |
+| `test/.../JoinCodeTest.kt` | 5 pruebas unitarias (código escrito, QR, parámetros extra, QR ajenos, entradas inválidas) |
+| `screen/course/CourseViewModel.kt` | `EnrollUiState` (9 estados) y `ClassCodeUiState`; `findCourse`, `onQrScanned`, `courseEnroll`, `openClassCode`, `regenerateClassCode`, `setEnrollmentOpen`, `approveRequest`, `rejectRequest` (con protección contra doble toque y actualización de contadores) |
+| `screen/course/AddCourseDialog.kt` | Diálogo del estudiante: botón *Escanear código QR*, campo con validación, resumen del curso, mensajes por estado; **7 `@Preview`** |
+| `screen/course/ClassCodeDialog.kt` | Diálogo del docente: QR (ZXing), código, copiar, compartir, regenerar, abrir/cerrar y **solicitudes pendientes con aprobar/rechazar**; **2 `@Preview`** |
+| `screen/course/StudentCourseScreen.kt` | Conecta ViewModel, escáner y diálogos; botón *Código de inscripción* en la tarjeta del curso (sólo docente) |
+| `screen/utils/QrCodeScanner.kt` | Envoltura del Google code scanner |
+| `data/...` | `ClassCodeInfo`, `ClassCodeActionRequest`, `EnrollmentRequest`, `CourseEnrollResponse.status`, `CourseDataSource`, `CourseRepository.classCode / getEnrollmentRequests / reviewEnrollmentRequest` |
+| `Backend/supabase/migrations/20260930000000_proyecto01_incorporacion.sql` | `class_code_expires_at`, `course_roster`, `enrollment_request`, políticas RLS |
+| `Backend/supabase/functions/service-course-enroll` | Validación completa y respuesta `ENROLLED` / `PENDING` |
+| `Backend/supabase/functions/service-course-class-code` | GET / REGENERATE / OPEN / CLOSE del código (sólo el docente del curso) |
+| `Backend/supabase/functions/service-enrollment-requests` | LIST / APPROVE / REJECT de solicitudes pendientes (sólo el docente del curso); al aprobar inscribe al estudiante |
+
+**Separación de responsabilidades**
+
+```mermaid
+flowchart LR
+    UI["AddCourseDialog / ClassCodeDialog<br/>(dibujan estado, emiten eventos)"] -- "onClickScanQr / onClickFindCourse / onClickCourseEnroll" --> VM["CourseViewModel<br/>(estado + reglas de flujo)"]
+    SCAN["QrCodeScanner<br/>(Play services)"] -- "rawValue" --> VM
+    VM -- "JoinCode.parse" --> DOM["JoinCode<br/>(formato, puro Kotlin)"]
+    VM --> REPO["StudentRepository / CourseRepository"] --> DS["DataSources"] --> EF["Edge Functions<br/>(validación autoritativa)"] --> DB[("Postgres + RLS")]
+    VM -- "StateFlow&lt;EnrollUiState&gt;" --> UI
+```
+
+**Verificación**: `./gradlew :app:testDebugUnitTest` (5/5 pruebas OK) y `./gradlew :app:assembleDebug` (compila con Hilt y Room). La ejecución contra el backend real requiere las credenciales de Supabase/Firebase, que no están en el repositorio base.
+
+---
