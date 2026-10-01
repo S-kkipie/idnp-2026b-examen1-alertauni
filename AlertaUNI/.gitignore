@@ -13,3 +13,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Configuración de Firebase local (no publicar)
+/app/google-services.json
