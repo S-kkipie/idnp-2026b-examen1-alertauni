@@ -246,3 +246,49 @@ flowchart LR
 **Verificación**: `./gradlew :app:testDebugUnitTest` (5/5 pruebas OK) y `./gradlew :app:assembleDebug` (compila con Hilt y Room). La ejecución contra el backend real requiere las credenciales de Supabase/Firebase, que no están en el repositorio base.
 
 ---
+
+## 7. Decisiones técnicas principales
+
+| # | Decisión | Alternativas descartadas | Motivo |
+|---|---|---|---|
+| DT1 | **Mismo token en QR y código** | QR con token distinto al código | Una sola validación y un solo endpoint; el QR es sólo un atajo de entrada |
+| DT2 | **Validación contra `course_roster` en el servidor** | Validar sólo en la app | La app es manipulable; la pertenencia al curso es una regla de seguridad |
+| DT3 | **Estado "pendiente" en lugar de rechazo** | Rechazar a no matriculados | Contempla matrículas tardías sin dejar entrar a externos |
+| DT4 | **Google code scanner** | CameraX + ML Kit | Sin permiso de cámara, menos código; suficiente para leer un QR |
+| DT5 | **Código con vencimiento, regenerable y cerrable** | Código permanente | Mitiga la filtración del QR/código (aprendizaje de Classroom y Moodle) |
+| DT6 | **Alfabeto sin caracteres ambiguos** | Alfanumérico completo | Menos errores al dictar o escribir |
+| DT7 | **Diálogos en la pestaña Cursos** | Nuevas rutas de navegación | Flujo corto; respeta la estructura de navegación existente |
+| DT8 | **`sealed class` de estados = pantallas de Figma** | Varios `Boolean` (`isLoading`, `isError`…) | Trazabilidad directa diseño ↔ código y estados imposibles eliminados |
+
+---
+
+## 8. Relación Figma ↔ código y exportación
+
+| Pantalla Stitch/Figma | Estado en código | `@Preview` |
+|---|---|---|
+| 01 Unirse (inicial) | `EnrollUiState.Idle` | `AddCourseDialogIdlePreview` |
+| 09 Escáner / verificando | `QrCodeScanner` + `Searching` | – (UI de Play services) |
+| 02 Confirmar inscripción | `CourseFound` | `AddCourseDialogFoundPreview` |
+| 03 Código inválido | `NotFound` | `AddCourseDialogNotFoundPreview` |
+| 04 Ya registrado | `AlreadyEnrolled` | `AddCourseDialogAlreadyEnrolledPreview` |
+| 05 Pendiente de aprobación | `PendingApproval` | `AddCourseDialogPendingPreview` |
+| 06 Registro exitoso | `Enrolled` | `AddCourseDialogEnrolledPreview` |
+| 07 Error de red | `Error` | `AddCourseDialogErrorPreview` |
+| 08 Docente: código y solicitudes | `ClassCodeUiState.Ready` (`requests`, `reviewingIds`) | `ClassCodeDialogReadyPreview`, `ClassCodeDialogClosedPreview` |
+
+**Exportar de Stitch a Figma**
+1. Abrir el proyecto en [stitch.withgoogle.com](https://stitch.withgoogle.com) (*AlertaUNI – Incorporación a curso (Proyecto 01)*).
+2. Seleccionar las pantallas → **Export** → **Figma** (o *Copy to Figma*).
+3. En Figma, pegar en un archivo nuevo (con el plugin *Stitch to Figma* si lo solicita). Las capas quedan editables con Auto Layout.
+4. Archivo resultante: https://www.figma.com/design/AqF2iVRnerwYnCzoP5dmRH/Untitled?node-id=0-1&t=vNiKA47BuQ6gfWBF-1
+
+---
+
+## 9. Guía de sustentación
+
+- *¿Por qué híbrido y no sólo QR?* → El QR solo no controla el acceso (§2); la lista oficial sí, y "pendiente" cubre los casos excepcionales.
+- *¿Dónde se valida el registro?* → Formato en la app (`JoinCode`), pertenencia y vigencia en el servidor (`service-course-enroll`).
+- *¿Qué pasa si el alumno escanea un QR de otra cosa?* → `JoinCode.parse` lo rechaza: "El QR escaneado no corresponde a un curso de AlertaUNI" (probado en `JoinCodeTest`).
+- *¿Por qué no pide permiso de cámara?* → El Google code scanner corre en Play services y devuelve sólo el texto leído.
+- *¿Cómo se relaciona Figma con el código?* → Cada pantalla es un estado de `EnrollUiState` con su `@Preview` (§8).
+- *¿Qué ocurre al rotar la pantalla a mitad del proceso?* → El estado vive en el ViewModel (`StateFlow`) y lo escrito en `rememberSaveable`.
