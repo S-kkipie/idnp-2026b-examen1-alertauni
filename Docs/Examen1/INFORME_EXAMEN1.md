@@ -340,3 +340,117 @@ Archivos que se modificarían: `screen/post/PostViewModel.kt`, `screen/post/Post
 
 ---
 
+## 3. Evolución del aplicativo (C1)
+
+### Propuestas
+
+| # | Propuesta | Necesidad que atiende |
+|---|---|---|
+| P1 | **Bandeja de avisos** (historial de notificaciones) – *desarrollada técnicamente, con implementación parcial* | Las notificaciones push desaparecen al descartarlas; el estudiante pierde avisos importantes (cambios de horario, fechas de entrega). La app ya las guardaba en Room, pero no había dónde verlas. |
+| P2 | **Consultas privadas del estudiante al docente** | Hoy sólo el docente inicia la comunicación privada; `StudentContactScreen` está vacía. El estudiante debería poder elegir un curso y enviar una consulta privada a su docente (reutilizando `service-post-private-add` con `receiver_private = professor_id`). |
+| P3 | **Confirmación de lectura de anuncios** ("Visto por 23 de 30") | El docente no sabe si un comunicado importante fue leído. Requiere tabla `post_read(post_id, user_id, read_at)` y registrar la lectura al abrir el anuncio. |
+| P4 | **Unirse al curso escaneando un QR** | Escribir el código de clase genera errores. El proyecto ya incluye `com.google.zxing:core`; el docente mostraría el QR del `class_code` y el estudiante lo escanearía con CameraX + ML Kit. |
+
+### Desarrollo técnico de P1 – Bandeja de avisos
+
+**Necesidad.** Una notificación push es efímera: si el estudiante la descarta o el sistema la agrupa, el aviso se pierde. En un contexto académico (cambios de aula, fechas de examen) esto es crítico. La app ya recibía y guardaba los avisos en Room, pero **ningún componente los mostraba**.
+
+**Comportamiento esperado (usuario).**
+1. Nueva pestaña **"Avisos"** en el menú inferior (docente y estudiante).
+2. Lista de avisos del más reciente al más antiguo, con título, mensaje y fecha.
+3. Si llega una notificación con la pantalla abierta, aparece **sin recargar**.
+4. Puede eliminar un aviso o limpiar todos (con confirmación).
+5. Estado vacío con explicación cuando no hay avisos.
+6. Al entrar por primera vez en Android 13+ se solicita el permiso de notificaciones.
+
+**Evaluación y selección de recursos**
+
+| Necesidad técnica | Alternativas evaluadas | Seleccionado | Justificación y restricciones |
+|---|---|---|---|
+| Persistir avisos en el dispositivo | Preferences DataStore · Room · sólo servidor | **Room** (ya existente) | DataStore guarda pares clave-valor, no listas consultables; el servidor exigiría red para ver el historial. Room permite ordenar, borrar por id y **observar cambios**. Restricción: el historial es por dispositivo (no se sincroniza entre equipos). |
+| Observar cambios | `LiveData` (original) · `Flow` | **`Flow` desde el DAO** | Se integra con corrutinas y `StateFlow`, que es el estándar del resto del proyecto; `LiveData` depende del ciclo de vida y era el único caso en la app. |
+| Exponer estado a la UI | `Flow` directo · `stateIn` | **`stateIn(viewModelScope, WhileSubscribed(5000), Loading)`** | Convierte el Flow en `StateFlow` con valor inicial; deja de observar Room 5 s después de salir de la pantalla (ahorra recursos) y no reinicia la consulta en una rotación. |
+| Una sola instancia de base de datos | `Room.databaseBuilder` en cada uso (original) · Hilt `@Singleton` | **`DatabaseModule` de Hilt** | Abrir varias instancias de la misma base es costoso y puede causar inconsistencias; con Hilt el servicio FCM y el ViewModel comparten la misma. |
+| Escribir desde el servicio | `CoroutineScope` suelto · scope del servicio | **`CoroutineScope(SupervisorJob() + Dispatchers.IO)` cancelado en `onDestroy`** | Evita corrutinas huérfanas; I/O fuera del hilo principal. |
+| Mostrar notificaciones | Sin permiso · `POST_NOTIFICATIONS` | **Permiso en manifiesto + `RequestPermission`** | Obligatorio con `targetSdk ≥ 33`; si el usuario lo niega, los avisos igual se guardan en la bandeja. |
+| Lista y acciones | `Column` · `LazyColumn` | **`LazyColumn` con `key`**, `Card`, `IconButton`, `AlertDialog` de confirmación | Carga perezosa y estabilidad de ítems al borrar. |
+
+**Estados y eventos**
+
+```mermaid
+stateDiagram-v2
+    [*] --> Loading
+    Loading --> Empty: Room devuelve []
+    Loading --> Content: Room devuelve lista
+    Empty --> Content: llega push (MiFirebaseService inserta)
+    Content --> Content: llega push / eliminar(id)
+    Content --> Empty: limpiar todo
+```
+
+- Estado: `NotificationUiState` = `Loading` | `Empty` | `Content(notifications)`.
+- Eventos de UI → ViewModel: `deleteNotification(id)`, `clearAll()` (tras confirmar en `AlertDialog`).
+- Evento externo: `onMessageReceived` → `NotificationRepository.saveNotification(...)` → Room emite → la UI se recompone.
+
+**Responsabilidades por capa**
+
+```mermaid
+flowchart LR
+    FCM["FCM"] --> SVC["MiFirebaseService<br/>(muestra la notificación<br/>y la guarda)"]
+    SVC --> REPO["NotificationRepository<br/>(interfaz) / Impl"]
+    REPO --> DAO["NotificacionDao<br/>Flow&lt;List&gt;, deleteById, deleteAll"]
+    DAO --> DB[("Room<br/>notificaciones-db")]
+    DB -. emite cambios .-> DAO
+    VM["NotificationViewModel<br/>stateIn → NotificationUiState"] --> REPO
+    UI["NotificationScreen<br/>(LazyColumn, Card, AlertDialog)"] -- "eventos" --> VM
+    VM -- "StateFlow" --> UI
+    HILT["DatabaseModule / RepositoryModule"] -.inyecta.-> SVC & VM & REPO
+```
+
+| Componente | Responsabilidad |
+|---|---|
+| `NotificationScreen` / `NotificationScreenLayout` | Dibujar Loading/Empty/Content; confirmar "Limpiar todo"; emitir eventos. `NotificationScreenLayout` es *stateless* (tiene `@Preview`). |
+| `NotificationViewModel` | Transformar el Flow de Room en `NotificationUiState`; ejecutar eliminaciones en `viewModelScope`. |
+| `NotificationRepository` + `Impl` | Aislar a la UI y al servicio de Room (misma convención interfaz + `@Binds` que el resto de repositorios). |
+| `NotificacionDao` | Consultas SQL: observar ordenado por fecha, borrar uno, borrar todos. |
+| `DatabaseModule` | Proveer `AppDatabase` como `@Singleton` y el DAO. |
+| `MiFirebaseService` | Recibir el push, mostrarlo y delegar el guardado al repositorio. |
+| `MainMenuScreen` / `RouteMainMenu.Notifications` | Nueva pestaña "Avisos" y solicitud del permiso. |
+
+**Integración con la arquitectura actual.** La funcionalidad reutiliza la entidad y la base Room existentes (sin migración de esquema: no se cambiaron columnas) y sigue exactamente los mismos patrones del proyecto: `@HiltViewModel`, repositorio con interfaz enlazado con `@Binds`, `StateFlow` observado con `collectAsState()`, pestaña registrada en `RouteMainMenu` y `NavHost` del menú. Se eliminó `data/local/NotificacionesViewModel.kt`, que estaba en la capa de datos, usaba `LiveData` y creaba la base manualmente.
+
+**Alcance del prototipo (implementación parcial) y justificación**
+
+El enunciado no exige desarrollar la funcionalidad completa, sino evidencia técnica suficiente de que es viable. Por eso se implementó **sólo la parte de mayor riesgo técnico**: la integración FCM → Room → ViewModel → Compose, que es la que podría impedir la propuesta. El resto son extensiones incrementales sobre esa base.
+
+| Implementado (evidencia de viabilidad) | No implementado (trabajo futuro) | Por qué se dejó fuera |
+|---|---|---|
+| Pestaña "Avisos" con estados Carga / Vacío / Lista | Marcar avisos como leídos y contador de no leídos en la pestaña | Requiere una columna nueva y una **migración de Room**; no aporta evidencia adicional de viabilidad |
+| Lista que se actualiza sola al llegar un push (`Flow` de Room) | Abrir el anuncio relacionado al tocar un aviso | Requiere que el backend envíe el `post_id` en el push (cambio en el emisor) |
+| Eliminar un aviso y limpiar todos (con confirmación) | Envío de mensajes FCM de tipo *data* desde el backend | Cambio en el servidor, fuera del alcance de la app |
+| Base Room única con Hilt y permiso `POST_NOTIFICATIONS` (prerrequisitos para que el prototipo funcione) | Sincronizar el historial entre dispositivos | Requiere una tabla y un endpoint nuevos en Supabase |
+| `@Preview` de los estados | Limpieza periódica con WorkManager | Optimización posterior |
+
+Las correcciones H1 (NavHost duplicado), H5 (permiso de notificaciones) y H6 (base Room única) forman parte de este prototipo: sin ellas la pestaña nueva no podría probarse correctamente.
+
+**Restricciones y limitaciones conocidas**
+
+- **Mensajes FCM de tipo *notification* en segundo plano**: si la app está en segundo plano, Android muestra la notificación sin llamar a `onMessageReceived`, por lo que **no se guardaría**. Para garantizar el historial, el backend debe enviar mensajes **de datos** (`data` payload) o combinados. Es un cambio en el emisor, no en la app.
+- **Historial local**: se pierde al desinstalar y no se comparte entre dispositivos. Una versión futura podría sincronizar con una tabla `notification` en Supabase.
+- **Crecimiento**: sin límite de registros; podría añadirse una limpieza periódica (p. ej. avisos de más de 90 días) con WorkManager.
+
+Archivos del prototipo: `MainActivity.kt` (H1), `screen/notification/NotificationScreen.kt`, `screen/notification/NotificationViewModel.kt`, `data/repository/NotificationRepository.kt`, `data/repository/NotificationRepositoryImpl.kt`, `data/di/DatabaseModule.kt`, `data/local/NotificacionDao.kt`, `services/MiFirebaseService.kt`, `navigation/RouteMainMenu.kt`, `navigation/MainAppNavigation.kt`, `AndroidManifest.xml`.
+
+---
+
+## 4. Resumen de cambios en el código del examen
+
+| Actividad | Cambios en el código | Detalle |
+|---|---|---|
+| 1. Comprensión | Ninguno | Sólo análisis |
+| 2. Evaluación (Mejoras 1 y 2) | **Ninguno** | Sólo análisis y propuesta; fragmentos ilustrativos en el informe |
+| 3. Evolución (P1 Bandeja de avisos) | Implementación **parcial** | `screen/notification/*`, `NotificationRepository*`, `DatabaseModule`, `NotificacionDao`, `MiFirebaseService`, `RouteMainMenu`, `MainAppNavigation` (pestaña + permiso), `AndroidManifest.xml`, `MainActivity` (H1) |
+
+> Los cambios en `screen/course/*`, `domain/course/*` y el backend nuevo pertenecen al **Proyecto Integrador – Parte 1**, no a este examen.
+
+---
+
