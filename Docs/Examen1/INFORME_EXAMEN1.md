@@ -205,3 +205,138 @@ Identificar estas situaciones forma parte de comprender el aplicativo. El punto 
 
 ---
 
+## 2. Evaluación y mejora de funcionalidades existentes (C2)
+
+> **Alcance:** esta actividad es de **análisis y propuesta**; no se modificó el código de la app. Para cada mejora se describen el problema, el comportamiento esperado, los recursos propuestos y cómo se integrarían en la arquitectura. Los fragmentos de código son **ilustrativos**.
+
+### Mejora 1 – Incorporación a un curso con estados explícitos
+
+**Problema identificado.** El flujo de unirse a un curso (F10) es la puerta de entrada del estudiante y, en la versión original:
+
+- No había indicador de búsqueda ni de registro en curso: el usuario no sabía si la app estaba trabajando.
+- Los errores (código inválido, inscripción cerrada, sin red) sólo se registraban con `Log.d`: **el usuario no recibía ningún mensaje**.
+- El texto escrito se borraba al buscar, obligando a reescribir un código mal tipeado.
+- El botón "Registrarme" estaba habilitado aunque no hubiera curso encontrado y podía pulsarse varias veces (doble petición).
+- Un estudiante ya inscrito podía intentar registrarse de nuevo.
+- El estado vivía repartido en tres lugares (`studentEnrollment`, `courseState` y variables `remember` en la pantalla) que se copiaban entre sí con `LaunchedEffect { collect { ... } }`.
+
+**Comportamiento esperado.** El diálogo debe reflejar en todo momento en qué punto del proceso está el usuario:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Searching: buscar(código)
+    Searching --> CourseFound: curso válido
+    Searching --> AlreadyEnrolled: ya está en su lista
+    Searching --> NotFound: código inválido / cerrado
+    NotFound --> Searching: corregir código
+    CourseFound --> Enrolling: Registrarme
+    Enrolling --> Enrolled: éxito
+    Enrolling --> Error: fallo de red/servidor
+    Error --> Enrolling: Reintentar
+    Enrolled --> [*]: Cerrar (Snackbar de confirmación)
+```
+
+**Recursos de Android/Compose propuestos y justificación**
+
+| Recurso | Uso | Por qué es apropiado | Restricciones consideradas |
+|---|---|---|---|
+| `sealed class EnrollUiState` | Estados `Idle`, `Searching`, `CourseFound`, `NotFound`, `AlreadyEnrolled`, `Enrolling`, `Enrolled`, `Error` | Modela estados **mutuamente excluyentes**; el `when` exhaustivo obliga a tratar cada caso y elimina combinaciones imposibles (p. ej. "cargando" y "error" a la vez) | Cada estado nuevo exige actualizar la UI (ventaja: el compilador lo señala) |
+| `StateFlow` en el ViewModel + `collectAsState()` | Fuente única de verdad del proceso | Sobrevive a la rotación (el ViewModel no se destruye); Compose se recompone sólo cuando cambia el estado | `StateFlow` descarta valores iguales consecutivos, por eso los estados son `data class`/`object` distintos |
+| `rememberSaveable` | Texto del código y visibilidad del diálogo | A diferencia de `remember`, se conserva tras rotación o muerte del proceso | Sólo admite tipos guardables en `Bundle` (aquí `String`/`Boolean`) |
+| `CircularProgressIndicator` | En el campo (buscando) y en el botón (registrando) | Retroalimentación inmediata sin bloquear la pantalla completa | – |
+| `KeyboardOptions(imeAction = Search, capitalization = Characters)` + `KeyboardActions` | Buscar desde el teclado; mayúsculas para códigos | Reduce errores de tipeo y pasos | La mayúscula es sugerencia del teclado, no se fuerza en el dato |
+| `TextField(isError = ...)` | Resalta el campo ante código inválido | Patrón estándar de Material 3 para validación | – |
+| `SnackbarHostState.showSnackbar` en `LaunchedEffect` | Confirma el registro aun después de cerrar el diálogo | Mensaje no intrusivo y accesible | Se dispara al entrar al estado `Enrolled` |
+| Validación local (lista de inscripciones) | Detecta "ya registrado" sin llamar al servidor | Ahorra una petición y da un mensaje preciso | El servidor debe seguir validando (clave primaria en `student_enrollment`) |
+| `@Preview` por estado | Una vista previa por estado del diálogo | Permite revisar cada estado sin backend y contrastarlo con el prototipo | – |
+
+**Integración con la arquitectura (propuesta).** No haría falta modificar repositorios ni DataSources: el cambio se concentraría en la capa de presentación, respetando las responsabilidades:
+
+- **UI** (`AddCourseDialog`): recibiría un `EnrollUiState` y emitiría `onClickFindCourse(código)` / `onClickCourseEnroll()`. Sería *stateless* respecto al proceso (sólo guarda el texto escrito), por eso admitiría `@Preview`.
+- **ViewModel** (`CourseViewModel`): normalizaría el código (`trim`), evitaría peticiones duplicadas, decidiría el estado y traduciría `BackendException` a mensajes de usuario.
+
+```kotlin
+// Ilustrativo: estado único del proceso expuesto por CourseViewModel
+sealed class EnrollUiState {
+    object Idle : EnrollUiState()
+    object Searching : EnrollUiState()
+    data class CourseFound(val course: StudentEnrollment) : EnrollUiState()
+    data class NotFound(val message: String) : EnrollUiState()
+    data class AlreadyEnrolled(val course: StudentEnrollment) : EnrollUiState()
+    data class Enrolling(val course: StudentEnrollment) : EnrollUiState()
+    data class Enrolled(val course: StudentEnrollment) : EnrollUiState()
+    data class Error(val message: String, val course: StudentEnrollment?) : EnrollUiState()
+}
+```
+- **Repository/DataSource**: sin cambios (`StudentRepository.findCourse`, `courseEnroll`).
+
+Archivos que se modificarían: `screen/course/CourseViewModel.kt`, `screen/course/AddCourseDialog.kt`, `screen/course/StudentCourseScreen.kt`.
+
+> Esta propuesta se retomó y amplió (QR, validación contra la lista de matriculados) en el **Proyecto Integrador – Parte 1**; su implementación pertenece a ese entregable.
+
+### Mejora 2 – Tablero de anuncios confiable (actualización, estados y rol)
+
+**Problema identificado.**
+
+- Tras publicar, **el anuncio nuevo no aparece** hasta reiniciar la app (el ViewModel sólo carga en `init`), y el docente no recibe confirmación ni aviso de error.
+- No hay forma de **actualizar manualmente** para ver anuncios nuevos de otros.
+- Sin estado de carga, ni mensaje de "sin anuncios", ni mensaje de error: todas las situaciones se ven como una pantalla vacía. Además, un curso sin anuncios se trataba como **error** en el repositorio.
+- Las tarjetas tenían **altura fija (220 dp)**, cortando contenidos largos o dejando espacio vacío.
+- El FAB de publicación se mostraba también al **estudiante**.
+
+**Comportamiento esperado.** Carga inicial con indicador → lista, estado vacío o error con posibilidad de reintentar deslizando hacia abajo → al publicar, Snackbar "Anuncio publicado" y la lista se actualiza sola. Sólo el docente ve el botón de publicar.
+
+**Recursos propuestos y justificación**
+
+| Recurso | Uso | Justificación | Restricciones |
+|---|---|---|---|
+| `data class BoardUiState(posts, isLoading, isRefreshing, errorMessage)` | Estado único del tablero | Un solo objeto inmutable actualizado con `update { copy(...) }` evita estados inconsistentes y conserva los anuncios ya cargados si falla una actualización | – |
+| `PullToRefreshBox` (Material 3, `@ExperimentalMaterial3Api`) | Deslizar para actualizar | Gesto conocido por los usuarios; se integra con `LazyColumn` | API experimental: puede cambiar entre versiones de Material 3 (el BOM 2025.02 incluye Material 3 1.3.x, donde ya existe) |
+| `MutableSharedFlow<String>` (eventos) | Mensajes de un solo disparo para el Snackbar | Un `StateFlow` re-emitiría el último mensaje tras rotar; `SharedFlow` sin *replay* modela correctamente un evento | Si nadie está suscrito el evento se descarta (`extraBufferCapacity = 1` mitiga el caso de emisión rápida) |
+| `LazyColumn` con `key = { it.id }` | Lista de anuncios | Mantiene la identidad de cada ítem al insertar uno nuevo arriba (animaciones y estado correctos) | Requiere ids únicos (`post_id` lo es) |
+| `Text(maxLines = 4, overflow = Ellipsis)` y altura según contenido | Tarjeta de anuncio | Tarjetas legibles de altura variable; el detalle completo se ve al abrir el anuncio | – |
+| Visibilidad del FAB por rol en `MainMenuScreen` | Docente: FAB en Posts; Estudiante: FAB en Cursos | La acción disponible coincide con los permisos del rol | La restricción real debe estar también en el backend (ver H13) |
+
+**Integración con la arquitectura (propuesta).** `PostRepositoryImpl.getPosts()` debería devolver `Result.success(emptyList())` cuando no hay anuncios (un caso válido, no un error). `PostViewModel` agregaría `refresh()` y, al publicar con éxito, emitiría el mensaje y volvería a cargar la lista. `PostScreen` observaría `boardUiState` y `messages`; los Composables de presentación (`BoardLayout`, `AnnounceList`, `MessageCard`) seguirían recibiendo sólo datos y lambdas.
+
+```kotlin
+// Ilustrativo: PostViewModel
+data class BoardUiState(
+    val posts: List<PostEntity> = emptyList(),
+    val isLoading: Boolean = true,
+    val isRefreshing: Boolean = false,
+    val errorMessage: String? = null
+)
+
+private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 1) // eventos de un solo disparo
+
+fun sendPost(courseId: String, title: String, content: String) = viewModelScope.launch {
+    repository.sendPost(PostRequest(courseId, title, content, false, true))
+        .onSuccess { _messages.emit("Anuncio publicado"); getPost() } // la lista se actualiza sola
+        .onFailure { _messages.emit("No se pudo publicar el anuncio") }
+}
+```
+
+```kotlin
+// Ilustrativo: PostScreen
+PullToRefreshBox(isRefreshing = state.isRefreshing, onRefresh = viewModel::refresh) {
+    when {
+        state.isLoading -> CircularProgressIndicator()
+        state.posts.isEmpty() -> EmptyOrErrorMessage(state.errorMessage)
+        else -> AnnounceList(state.posts)
+    }
+}
+```
+
+Archivos que se modificarían: `screen/post/PostViewModel.kt`, `screen/post/PostScreen.kt`, `data/repository/PostRepositoryImpl.kt`, `navigation/MainAppNavigation.kt`.
+
+### Otras mejoras recomendadas
+
+1. **Rol verificado por el servidor (H13)**: el rol "Docente" no debería autodeclararse. Propuesta: tabla `professor` precargada por la escuela o validación por dominio/lista; la Edge Function asigna el rol y la app sólo lo lee.
+2. **Autorización en `service-course-student` (H14)** y políticas RLS en Supabase para que un docente sólo vea estudiantes de sus cursos.
+3. **Comentarios en tiempo real**: el SDK `realtime-kt` ya es dependencia; el ViewModel podría suscribirse a `postgresChangeFlow` de la tabla `comment` filtrando por `post_id`, en lugar de cargar una sola vez.
+4. **"Recordar cuenta" (H8)**: leer `REMEMBER_ME` y la sesión de Supabase al iniciar para saltar el login.
+
+---
+
