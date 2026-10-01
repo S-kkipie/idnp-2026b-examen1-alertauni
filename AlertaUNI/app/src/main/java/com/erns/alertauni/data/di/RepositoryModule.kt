@@ -12,6 +12,8 @@ import com.erns.alertauni.data.repository.ContactRepository
 import com.erns.alertauni.data.repository.ContactRepositoryImpl
 import com.erns.alertauni.data.repository.CourseRepository
 import com.erns.alertauni.data.repository.CourseRepositoryImpl
+import com.erns.alertauni.data.repository.NotificationRepository
+import com.erns.alertauni.data.repository.NotificationRepositoryImpl
 import com.erns.alertauni.data.repository.PostRepository
 import com.erns.alertauni.data.repository.PostRepositoryImpl
 import com.erns.alertauni.data.repository.StudentRepository
@@ -73,4 +75,10 @@ abstract class RepositoryModule {
     abstract fun bindAnnounceRepository(
         announceRepositoryImpl: AnnounceRepositoryImpl
     ): AnnounceRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindNotificationRepository(
+        notificationRepositoryImpl: NotificationRepositoryImpl
+    ): NotificationRepository
 }
