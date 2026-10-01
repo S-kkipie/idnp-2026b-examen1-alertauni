@@ -32,8 +32,11 @@ class PostRepositoryImpl @Inject constructor(
     override suspend fun getPosts(): Result<List<PostEntity>> {
         return try {
             val success = postDataSource.callPostsEndpoint()
-            // Una lista vacía es un resultado válido (curso sin anuncios), no un error
-            Result.success(success.data)
+            if (success.data.isNotEmpty()) {
+                Result.success(success.data)
+            } else {
+                Result.failure(Exception("No posts found"))
+            }
         } catch (e: BackendException) {
             if (e.errorData.code == "PROFILE_NOT_FOUND") {
                 // Disparamos el evento global de navegación asíncronamente

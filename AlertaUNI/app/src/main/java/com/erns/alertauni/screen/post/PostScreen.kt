@@ -1,5 +1,6 @@
 package com.erns.alertauni.screen.post
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,13 +19,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -32,16 +29,16 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.erns.alertauni.R
 import com.erns.alertauni.data.model.PostEntity
 import com.erns.alertauni.screen.common.SearchBoxComponent
@@ -61,18 +58,18 @@ fun PostScreen(
     snackbarHostState: SnackbarHostState,
     onFabActionReady: (() -> Unit) -> Unit
 ) {
+    val context = LocalContext.current
     val postViewModel: PostViewModel = hiltViewModel()
     val scope = rememberCoroutineScope()
-    val boardUiState = postViewModel.boardUiState.collectAsState()
+    val announcementState = postViewModel.announcements.collectAsState()
     val catalogCourseState = postViewModel.catalogCourses.collectAsState()
-    val username = postViewModel.username.collectAsState()
-    val showAddDialog = rememberSaveable { mutableStateOf(false) }
+    val showAddDialog = remember { mutableStateOf(false) }
     val searchQuery = remember { mutableStateOf("") }
+    val username = remember { mutableStateOf("") }
 
-    // Mensajes de un solo disparo emitidos por el ViewModel
     LaunchedEffect(Unit) {
-        postViewModel.messages.collect { message ->
-            snackbarHostState.showSnackbar(message)
+        postViewModel.username.collect {
+            username.value = it
         }
     }
 
@@ -92,15 +89,13 @@ fun PostScreen(
         } else {
             scope.launch {
                 snackbarHostState.showSnackbar(
-                    message = "Debes tener al menos un curso a cargo para publicar un anuncio."
+                    message = "Debes estar inscrito en al menos un curso para crear una notificación."
                 )
             }
         }
     }
 
-    LaunchedEffect(Unit) {
-        onFabActionReady(onClickFloatingActionButton)
-    }
+    onFabActionReady(onClickFloatingActionButton)
 
     if (showAddDialog.value && catalogCourseState.value.isNotEmpty()) {
         AddPostDialog(
@@ -114,21 +109,19 @@ fun PostScreen(
         username.value,
         "Anuncios",
         searchQuery = searchQuery,
-        boardUiState = boardUiState.value,
-        onRefresh = { postViewModel.refresh() },
-        onClickComment = onClickComment
+        notificacionesFiltradas = announcementState.value,
+        onClickComment
     )
 
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun BoardLayout(
     username: String,
     title: String,
     searchQuery: MutableState<String>,
-    boardUiState: PostViewModel.BoardUiState,
-    onRefresh: () -> Unit,
+    notificacionesFiltradas: List<PostEntity>,
     onClickComment: (String) -> Unit
 ) {
 
@@ -138,71 +131,22 @@ fun BoardLayout(
             .background(MySecondaryColor)
     ) {
         SearchBoxComponent(username, title)
-        PullToRefreshBox(
-            isRefreshing = boardUiState.isRefreshing,
-            onRefresh = onRefresh,
-            modifier = Modifier.fillMaxSize()
-        ) {
-            when {
-                boardUiState.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-
-                boardUiState.posts.isEmpty() -> BoardMessage(
-                    text = boardUiState.errorMessage
-                        ?: "No hay anuncios todavía.\nDesliza hacia abajo para actualizar.",
-                    isError = boardUiState.errorMessage != null
-                )
-
-                else -> AnnounceList(boardUiState.posts, boardUiState.errorMessage, onClickComment)
-            }
-        }
+        AnnounceList(notificacionesFiltradas, onClickComment)
     }
 
-}
-
-@Composable
-private fun BoardMessage(text: String, isError: Boolean) {
-    // LazyColumn para que el gesto "pull to refresh" funcione también con la lista vacía
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        item {
-            Text(
-                text = text,
-                color = if (isError) MaterialTheme.colorScheme.error else MyMutedForegroundColor,
-                textAlign = TextAlign.Center,
-                fontSize = 16.sp,
-                modifier = Modifier.padding(24.dp)
-            )
-        }
-    }
 }
 
 
 @Composable
 fun AnnounceList(
     announcements: List<PostEntity>,
-    errorMessage: String?,
     onClickComment: (String) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
     ) {
-        if (errorMessage != null) {
-            item {
-                Text(
-                    text = errorMessage,
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                )
-            }
-        }
-        items(announcements, key = { it.id }) { announce ->
+        items(announcements) { announce ->
             MessageCard(announce, onClickComment)
         }
 
@@ -218,6 +162,7 @@ fun MessageCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .height(220.dp)
             .padding(8.dp)
             .clickable(onClick = { onClickComment(announce.id.toString()) }),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
@@ -225,7 +170,7 @@ fun MessageCard(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -273,9 +218,7 @@ fun MessageCard(
             )
             Text(
                 text = announce.content,
-                fontSize = 18.sp,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis
+                fontSize = 18.sp
             )
             Spacer(
                 modifier = Modifier

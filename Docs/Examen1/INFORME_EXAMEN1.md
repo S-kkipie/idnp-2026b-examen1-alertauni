@@ -15,9 +15,11 @@ Método seguido:
 1. **Lectura estructural**: inventario de paquetes y capas (`screen/`, `navigation/`, `data/`, `domain/`, `services/`, `security/`) y del backend (`Backend/supabase/functions`) junto con el modelo de datos (`Docs/Modelo base datos.png`).
 2. **Trazado de casos de uso**: para cada funcionalidad se siguió el camino *acción del usuario → Composable → evento → ViewModel → Repository → DataSource → Edge Function → nuevo estado → recomposición*.
 3. **Contraste con el uso real**: cada flujo se evaluó desde la perspectiva de un docente/estudiante real (errores, red lenta, rotación, estados vacíos, permisos, seguridad).
-4. **Implementación como evidencia**: las mejoras (punto 2) y una funcionalidad nueva (punto 3) se implementaron en código respetando la arquitectura existente.
+4. **Alcance según el enunciado**:
+   - **Punto 2 (evaluación): sólo análisis y propuesta.** No se modificó el código de la app; los fragmentos de código del punto 2 son ilustrativos.
+   - **Punto 3 (evolución): desarrollo técnico con implementación parcial** de una propuesta, como evidencia de viabilidad, con el alcance y su justificación explícitos.
 
-> Nota de verificación: el repositorio no incluye `google-services.json` ni las claves reales de Supabase (`SupabaseModule` usa `"https://myurl.supabase.co"`), por lo que la app no puede ejecutarse contra el backend real. El código se verificó compilando el APK (`./gradlew :app:assembleDebug`, incluye Hilt y Room) con un `google-services.json` de prueba no incluido en el repositorio.
+> Nota de verificación: el repositorio no incluye `google-services.json` ni las claves reales de Supabase (`SupabaseModule` usa `"https://myurl.supabase.co"`), por lo que la app no puede ejecutarse contra el backend real. El prototipo del punto 3 se verificó compilando el APK (`./gradlew :app:assembleDebug`, incluye Hilt y Room) con un `google-services.json` de prueba no incluido en el repositorio.
 
 ---
 
@@ -178,16 +180,16 @@ sequenceDiagram
 
 ### 1.4 Hallazgos del análisis (defectos, código muerto y riesgos)
 
-Identificar estas situaciones forma parte de comprender el aplicativo; algunas se corrigieron en el punto 2.
+Identificar estas situaciones forma parte de comprender el aplicativo. El punto 2 **propone** cómo resolver las de mayor impacto; sólo H1, H5 y H6 se corrigieron porque el prototipo del punto 3 los necesita para funcionar.
 
 | # | Hallazgo | Ubicación | Impacto | Estado |
 |---|---|---|---|---|
-| H1 | `MainAppNavigation()` se llamaba **dos veces** (dentro y fuera del `Scaffold`) → dos `NavHost` y dos pantallas de login superpuestas | `MainActivity.kt` | Alto (UI duplicada, doble ViewModel) | **Corregido** |
-| H2 | Al publicar un anuncio la lista **no se refresca**; no hay estado de carga, vacío ni error; un curso sin anuncios se trataba como error (`"No posts found"`) | `PostViewModel`, `PostRepositoryImpl` | Medio | **Corregido (Mejora 2)** |
-| H3 | Unirse a curso: sin indicador de carga, errores silenciosos (sólo `Log`), el código escrito se borra, se puede pulsar "Registrarme" sin curso, no detecta "ya registrado" | `AddCourseDialog`, `CourseViewModel` | Alto (flujo crítico) | **Corregido (Mejora 1)** |
-| H4 | El FAB de "Posts" y "Cursos" aparece para **ambos roles** (un estudiante podía abrir "Nuevo anuncio" y un docente "Agregar curso") | `MainMenuScreen` | Medio | **Corregido** |
-| H5 | Android 13+ requiere el permiso `POST_NOTIFICATIONS` en tiempo de ejecución; no estaba declarado ni solicitado (`targetSdk = 36`) | `AndroidManifest.xml` | Alto (no se ven notificaciones) | **Corregido** |
-| H6 | `MiFirebaseService` construía una **nueva base Room por cada mensaje** y usaba `CoroutineScope` sin cancelar | `MiFirebaseService` | Medio (recursos) | **Corregido** |
+| H1 | `MainAppNavigation()` se llamaba **dos veces** (dentro y fuera del `Scaffold`) → dos `NavHost` y dos pantallas de login superpuestas | `MainActivity.kt` | Alto (UI duplicada, doble ViewModel) | Corregido (necesario para el prototipo del punto 3) |
+| H2 | Al publicar un anuncio la lista **no se refresca**; no hay estado de carga, vacío ni error; un curso sin anuncios se trataba como error (`"No posts found"`) | `PostViewModel`, `PostRepositoryImpl` | Medio | Propuesta (Mejora 2) |
+| H3 | Unirse a curso: sin indicador de carga, errores silenciosos (sólo `Log`), el código escrito se borra, se puede pulsar "Registrarme" sin curso, no detecta "ya registrado" | `AddCourseDialog`, `CourseViewModel` | Alto (flujo crítico) | Propuesta (Mejora 1)¹ |
+| H4 | El FAB de "Posts" y "Cursos" aparece para **ambos roles** (un estudiante podía abrir "Nuevo anuncio" y un docente "Agregar curso") | `MainMenuScreen` | Medio | Propuesta (Mejora 2)¹ |
+| H5 | Android 13+ requiere el permiso `POST_NOTIFICATIONS` en tiempo de ejecución; no estaba declarado ni solicitado (`targetSdk = 36`) | `AndroidManifest.xml` | Alto (no se ven notificaciones) | Corregido (parte del prototipo del punto 3) |
+| H6 | `MiFirebaseService` construía una **nueva base Room por cada mensaje** y usaba `CoroutineScope` sin cancelar | `MiFirebaseService` | Medio (recursos) | Corregido (parte del prototipo del punto 3) |
 | H7 | `CourseDataSource` invoca `GET_COMMENTS` en lugar del catálogo de cursos | `CourseDataSource.kt` | Bajo (no se usa) | Documentado |
 | H8 | "Recordar cuenta" se guarda pero nunca se lee (`checkSession2` es privado y no se invoca); `init` borra `userType` en cada inicio | `LoginViewModel` | Medio | Documentado |
 | H9 | Nombre del docente **fijo** ("Ernesto Suarez") en la cabecera de Contactos | `TeacherContactScreen` | Bajo | Documentado |
@@ -199,9 +201,13 @@ Identificar estas situaciones forma parte de comprender el aplicativo; algunas s
 | H15 | `service-post-add` referencia `courseCatalogIDs` sin declararlo y su `catch` usa `error` en vez de `err` → la función falla; `service-comments` desestructura `dbError` (inexistente) | Backend | Alto | Documentado |
 | H16 | Faltan en el repositorio `service-student-enrollment`, `service-course-enroll` y `service-comment-add-private` | Backend | – | Documentado |
 
+¹ El flujo de incorporación a un curso (H3) y el botón "+" de Cursos sólo para estudiantes se implementaron después como parte de otro entregable, el **Proyecto Integrador – Parte 1** (`Docs/Proyecto01`), no como parte de este examen.
+
 ---
 
 ## 2. Evaluación y mejora de funcionalidades existentes (C2)
+
+> **Alcance:** esta actividad es de **análisis y propuesta**; no se modificó el código de la app. Para cada mejora se describen el problema, el comportamiento esperado, los recursos propuestos y cómo se integrarían en la arquitectura. Los fragmentos de código son **ilustrativos**.
 
 ### Mejora 1 – Incorporación a un curso con estados explícitos
 
@@ -231,7 +237,7 @@ stateDiagram-v2
     Enrolled --> [*]: Cerrar (Snackbar de confirmación)
 ```
 
-**Recursos de Android/Compose empleados y justificación**
+**Recursos de Android/Compose propuestos y justificación**
 
 | Recurso | Uso | Por qué es apropiado | Restricciones consideradas |
 |---|---|---|---|
@@ -245,13 +251,29 @@ stateDiagram-v2
 | Validación local (lista de inscripciones) | Detecta "ya registrado" sin llamar al servidor | Ahorra una petición y da un mensaje preciso | El servidor debe seguir validando (clave primaria en `student_enrollment`) |
 | `@Preview` por estado | Una vista previa por estado del diálogo | Permite revisar cada estado sin backend y contrastarlo con el prototipo | – |
 
-**Integración con la arquitectura.** No se modificaron repositorios ni DataSources: el cambio se concentra en la capa de presentación, respetando las responsabilidades:
+**Integración con la arquitectura (propuesta).** No haría falta modificar repositorios ni DataSources: el cambio se concentraría en la capa de presentación, respetando las responsabilidades:
 
-- **UI** (`AddCourseDialog`): recibe un `EnrollUiState` y emite `onClickFindCourse(código)` / `onClickCourseEnroll()`. Es *stateless* respecto al proceso (sólo guarda el texto escrito), por eso admite `@Preview`.
-- **ViewModel** (`CourseViewModel`): normaliza el código (`trim`), evita peticiones duplicadas, decide el estado y traduce `BackendException` a mensajes de usuario.
+- **UI** (`AddCourseDialog`): recibiría un `EnrollUiState` y emitiría `onClickFindCourse(código)` / `onClickCourseEnroll()`. Sería *stateless* respecto al proceso (sólo guarda el texto escrito), por eso admitiría `@Preview`.
+- **ViewModel** (`CourseViewModel`): normalizaría el código (`trim`), evitaría peticiones duplicadas, decidiría el estado y traduciría `BackendException` a mensajes de usuario.
+
+```kotlin
+// Ilustrativo: estado único del proceso expuesto por CourseViewModel
+sealed class EnrollUiState {
+    object Idle : EnrollUiState()
+    object Searching : EnrollUiState()
+    data class CourseFound(val course: StudentEnrollment) : EnrollUiState()
+    data class NotFound(val message: String) : EnrollUiState()
+    data class AlreadyEnrolled(val course: StudentEnrollment) : EnrollUiState()
+    data class Enrolling(val course: StudentEnrollment) : EnrollUiState()
+    data class Enrolled(val course: StudentEnrollment) : EnrollUiState()
+    data class Error(val message: String, val course: StudentEnrollment?) : EnrollUiState()
+}
+```
 - **Repository/DataSource**: sin cambios (`StudentRepository.findCourse`, `courseEnroll`).
 
-Archivos: `screen/course/CourseViewModel.kt`, `screen/course/AddCourseDialog.kt`, `screen/course/StudentCourseScreen.kt` (además: estado de carga y estado vacío con instrucciones en la lista de cursos).
+Archivos que se modificarían: `screen/course/CourseViewModel.kt`, `screen/course/AddCourseDialog.kt`, `screen/course/StudentCourseScreen.kt`.
+
+> Esta propuesta se retomó y amplió (QR, validación contra la lista de matriculados) en el **Proyecto Integrador – Parte 1**; su implementación pertenece a ese entregable.
 
 ### Mejora 2 – Tablero de anuncios confiable (actualización, estados y rol)
 
@@ -265,7 +287,7 @@ Archivos: `screen/course/CourseViewModel.kt`, `screen/course/AddCourseDialog.kt`
 
 **Comportamiento esperado.** Carga inicial con indicador → lista, estado vacío o error con posibilidad de reintentar deslizando hacia abajo → al publicar, Snackbar "Anuncio publicado" y la lista se actualiza sola. Sólo el docente ve el botón de publicar.
 
-**Recursos empleados y justificación**
+**Recursos propuestos y justificación**
 
 | Recurso | Uso | Justificación | Restricciones |
 |---|---|---|---|
@@ -276,17 +298,40 @@ Archivos: `screen/course/CourseViewModel.kt`, `screen/course/AddCourseDialog.kt`
 | `Text(maxLines = 4, overflow = Ellipsis)` y altura según contenido | Tarjeta de anuncio | Tarjetas legibles de altura variable; el detalle completo se ve al abrir el anuncio | – |
 | Visibilidad del FAB por rol en `MainMenuScreen` | Docente: FAB en Posts; Estudiante: FAB en Cursos | La acción disponible coincide con los permisos del rol | La restricción real debe estar también en el backend (ver H13) |
 
-**Integración con la arquitectura.** `PostRepositoryImpl.getPosts()` ahora devuelve `Result.success(emptyList())` cuando no hay anuncios (un caso válido, no un error). `PostViewModel` agrega `refresh()` y, al publicar con éxito, emite el mensaje y vuelve a cargar la lista. `PostScreen` observa `boardUiState` y `messages`; los Composables de presentación (`BoardLayout`, `AnnounceList`, `MessageCard`) siguen recibiendo sólo datos y lambdas.
+**Integración con la arquitectura (propuesta).** `PostRepositoryImpl.getPosts()` debería devolver `Result.success(emptyList())` cuando no hay anuncios (un caso válido, no un error). `PostViewModel` agregaría `refresh()` y, al publicar con éxito, emitiría el mensaje y volvería a cargar la lista. `PostScreen` observaría `boardUiState` y `messages`; los Composables de presentación (`BoardLayout`, `AnnounceList`, `MessageCard`) seguirían recibiendo sólo datos y lambdas.
 
-Archivos: `screen/post/PostViewModel.kt`, `screen/post/PostScreen.kt`, `data/repository/PostRepositoryImpl.kt`, `navigation/MainAppNavigation.kt`.
+```kotlin
+// Ilustrativo: PostViewModel
+data class BoardUiState(
+    val posts: List<PostEntity> = emptyList(),
+    val isLoading: Boolean = true,
+    val isRefreshing: Boolean = false,
+    val errorMessage: String? = null
+)
 
-### Correcciones complementarias
+private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 1) // eventos de un solo disparo
 
-- **H1** `MainActivity`: se eliminó la segunda llamada a `MainAppNavigation()`.
-- **H5** `POST_NOTIFICATIONS`: declarado en el manifiesto y solicitado al entrar al menú principal con `rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission())` sólo en API ≥ 33.
-- **H6** `MiFirebaseService`: usa la base Room única inyectada por Hilt y un `CoroutineScope(SupervisorJob() + Dispatchers.IO)` que se cancela en `onDestroy`.
+fun sendPost(courseId: String, title: String, content: String) = viewModelScope.launch {
+    repository.sendPost(PostRequest(courseId, title, content, false, true))
+        .onSuccess { _messages.emit("Anuncio publicado"); getPost() } // la lista se actualiza sola
+        .onFailure { _messages.emit("No se pudo publicar el anuncio") }
+}
+```
 
-### Otras mejoras recomendadas (no implementadas)
+```kotlin
+// Ilustrativo: PostScreen
+PullToRefreshBox(isRefreshing = state.isRefreshing, onRefresh = viewModel::refresh) {
+    when {
+        state.isLoading -> CircularProgressIndicator()
+        state.posts.isEmpty() -> EmptyOrErrorMessage(state.errorMessage)
+        else -> AnnounceList(state.posts)
+    }
+}
+```
+
+Archivos que se modificarían: `screen/post/PostViewModel.kt`, `screen/post/PostScreen.kt`, `data/repository/PostRepositoryImpl.kt`, `navigation/MainAppNavigation.kt`.
+
+### Otras mejoras recomendadas
 
 1. **Rol verificado por el servidor (H13)**: el rol "Docente" no debería autodeclararse. Propuesta: tabla `professor` precargada por la escuela o validación por dominio/lista; la Edge Function asigna el rol y la app sólo lo lee.
 2. **Autorización en `service-course-student` (H14)** y políticas RLS en Supabase para que un docente sólo vea estudiantes de sus cursos.
@@ -301,7 +346,7 @@ Archivos: `screen/post/PostViewModel.kt`, `screen/post/PostScreen.kt`, `data/rep
 
 | # | Propuesta | Necesidad que atiende |
 |---|---|---|
-| P1 | **Bandeja de avisos** (historial de notificaciones) – *desarrollada e implementada* | Las notificaciones push desaparecen al descartarlas; el estudiante pierde avisos importantes (cambios de horario, fechas de entrega). La app ya las guardaba en Room, pero no había dónde verlas. |
+| P1 | **Bandeja de avisos** (historial de notificaciones) – *desarrollada técnicamente, con implementación parcial* | Las notificaciones push desaparecen al descartarlas; el estudiante pierde avisos importantes (cambios de horario, fechas de entrega). La app ya las guardaba en Room, pero no había dónde verlas. |
 | P2 | **Consultas privadas del estudiante al docente** | Hoy sólo el docente inicia la comunicación privada; `StudentContactScreen` está vacía. El estudiante debería poder elegir un curso y enviar una consulta privada a su docente (reutilizando `service-post-private-add` con `receiver_private = professor_id`). |
 | P3 | **Confirmación de lectura de anuncios** ("Visto por 23 de 30") | El docente no sabe si un comunicado importante fue leído. Requiere tabla `post_read(post_id, user_id, read_at)` y registrar la lectura al abrir el anuncio. |
 | P4 | **Unirse al curso escaneando un QR** | Escribir el código de clase genera errores. El proyecto ya incluye `com.google.zxing:core`; el docente mostraría el QR del `class_code` y el estudiante lo escanearía con CameraX + ML Kit. |
@@ -373,29 +418,39 @@ flowchart LR
 
 **Integración con la arquitectura actual.** La funcionalidad reutiliza la entidad y la base Room existentes (sin migración de esquema: no se cambiaron columnas) y sigue exactamente los mismos patrones del proyecto: `@HiltViewModel`, repositorio con interfaz enlazado con `@Binds`, `StateFlow` observado con `collectAsState()`, pestaña registrada en `RouteMainMenu` y `NavHost` del menú. Se eliminó `data/local/NotificacionesViewModel.kt`, que estaba en la capa de datos, usaba `LiveData` y creaba la base manualmente.
 
+**Alcance del prototipo (implementación parcial) y justificación**
+
+El enunciado no exige desarrollar la funcionalidad completa, sino evidencia técnica suficiente de que es viable. Por eso se implementó **sólo la parte de mayor riesgo técnico**: la integración FCM → Room → ViewModel → Compose, que es la que podría impedir la propuesta. El resto son extensiones incrementales sobre esa base.
+
+| Implementado (evidencia de viabilidad) | No implementado (trabajo futuro) | Por qué se dejó fuera |
+|---|---|---|
+| Pestaña "Avisos" con estados Carga / Vacío / Lista | Marcar avisos como leídos y contador de no leídos en la pestaña | Requiere una columna nueva y una **migración de Room**; no aporta evidencia adicional de viabilidad |
+| Lista que se actualiza sola al llegar un push (`Flow` de Room) | Abrir el anuncio relacionado al tocar un aviso | Requiere que el backend envíe el `post_id` en el push (cambio en el emisor) |
+| Eliminar un aviso y limpiar todos (con confirmación) | Envío de mensajes FCM de tipo *data* desde el backend | Cambio en el servidor, fuera del alcance de la app |
+| Base Room única con Hilt y permiso `POST_NOTIFICATIONS` (prerrequisitos para que el prototipo funcione) | Sincronizar el historial entre dispositivos | Requiere una tabla y un endpoint nuevos en Supabase |
+| `@Preview` de los estados | Limpieza periódica con WorkManager | Optimización posterior |
+
+Las correcciones H1 (NavHost duplicado), H5 (permiso de notificaciones) y H6 (base Room única) forman parte de este prototipo: sin ellas la pestaña nueva no podría probarse correctamente.
+
 **Restricciones y limitaciones conocidas**
 
 - **Mensajes FCM de tipo *notification* en segundo plano**: si la app está en segundo plano, Android muestra la notificación sin llamar a `onMessageReceived`, por lo que **no se guardaría**. Para garantizar el historial, el backend debe enviar mensajes **de datos** (`data` payload) o combinados. Es un cambio en el emisor, no en la app.
 - **Historial local**: se pierde al desinstalar y no se comparte entre dispositivos. Una versión futura podría sincronizar con una tabla `notification` en Supabase.
 - **Crecimiento**: sin límite de registros; podría añadirse una limpieza periódica (p. ej. avisos de más de 90 días) con WorkManager.
 
-Archivos: `screen/notification/NotificationScreen.kt`, `screen/notification/NotificationViewModel.kt`, `data/repository/NotificationRepository.kt`, `data/repository/NotificationRepositoryImpl.kt`, `data/di/DatabaseModule.kt`, `data/local/NotificacionDao.kt`, `services/MiFirebaseService.kt`, `navigation/RouteMainMenu.kt`, `navigation/MainAppNavigation.kt`, `AndroidManifest.xml`.
+Archivos del prototipo: `MainActivity.kt` (H1), `screen/notification/NotificationScreen.kt`, `screen/notification/NotificationViewModel.kt`, `data/repository/NotificationRepository.kt`, `data/repository/NotificationRepositoryImpl.kt`, `data/di/DatabaseModule.kt`, `data/local/NotificacionDao.kt`, `services/MiFirebaseService.kt`, `navigation/RouteMainMenu.kt`, `navigation/MainAppNavigation.kt`, `AndroidManifest.xml`.
 
 ---
 
-## 4. Resumen de cambios en el código
+## 4. Resumen de cambios en el código del examen
 
-| Tipo | Archivo | Cambio |
+| Actividad | Cambios en el código | Detalle |
 |---|---|---|
-| Corrección | `MainActivity.kt` | Una sola instancia de `MainAppNavigation` |
-| Mejora 1 | `CourseViewModel.kt` | `EnrollUiState`, validaciones, anti doble envío, detección de "ya registrado", mensajes de error |
-| Mejora 1 | `AddCourseDialog.kt` | Diálogo dirigido por estado, progreso, errores visibles, teclado con acción "buscar", `@Preview` por estado |
-| Mejora 1 | `StudentCourseScreen.kt` | Estados de carga/vacío, Snackbar de confirmación, `rememberSaveable` |
-| Mejora 2 | `PostViewModel.kt` | `BoardUiState`, `refresh()`, eventos `SharedFlow`, recarga tras publicar |
-| Mejora 2 | `PostScreen.kt` | `PullToRefreshBox`, estados carga/vacío/error, tarjetas de altura flexible |
-| Mejora 2 | `PostRepositoryImpl.kt` | Lista vacía = éxito |
-| Rol | `MainAppNavigation.kt` | FAB según rol; pestaña "Avisos"; permiso `POST_NOTIFICATIONS` |
-| Evolución | `screen/notification/*`, `NotificationRepository*`, `DatabaseModule`, `NotificacionDao`, `MiFirebaseService`, `RouteMainMenu`, `AndroidManifest.xml` | Bandeja de avisos |
+| 1. Comprensión | Ninguno | Sólo análisis |
+| 2. Evaluación (Mejoras 1 y 2) | **Ninguno** | Sólo análisis y propuesta; fragmentos ilustrativos en el informe |
+| 3. Evolución (P1 Bandeja de avisos) | Implementación **parcial** | `screen/notification/*`, `NotificationRepository*`, `DatabaseModule`, `NotificacionDao`, `MiFirebaseService`, `RouteMainMenu`, `MainAppNavigation` (pestaña + permiso), `AndroidManifest.xml`, `MainActivity` (H1) |
+
+> Los cambios en `screen/course/*`, `domain/course/*` y el backend nuevo pertenecen al **Proyecto Integrador – Parte 1**, no a este examen.
 
 ---
 
@@ -410,4 +465,6 @@ Preguntas probables y dónde está la respuesta:
 - *¿Cómo se decide qué anuncios ve cada usuario?* → `service-posts` + `get_posts_fun(course_ids, receiver_sender)` (F4, F7).
 - *¿Qué hace Hilt aquí?* → Provee `SupabaseClient`, `DataStoreHelper`, `AppDatabase` como singletons y enlaza interfaces de repositorio con `@Binds` (§1.1, P1).
 - *¿Qué limitaciones tiene la bandeja?* → Mensajes *notification* en segundo plano, historial local (§3, restricciones).
+- *¿Por qué no implementaron las mejoras del punto 2?* → El enunciado pide analizarlas y proponerlas; se justificó cada una con problema, comportamiento esperado, recursos e integración (§2).
+- *¿Por qué la bandeja está incompleta?* → Implementación parcial deliberada: se probó la parte de mayor riesgo (FCM → Room → Compose); lo demás es incremental (§3, alcance del prototipo).
 - *¿Qué riesgos de seguridad encontraron?* → Rol autodeclarado y consulta de estudiantes sin autorización (H13, H14).

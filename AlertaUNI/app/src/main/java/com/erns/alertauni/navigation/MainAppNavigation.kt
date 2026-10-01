@@ -118,8 +118,8 @@ fun MainMenuScreen(userType: String) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            // El docente publica anuncios; el estudiante se inscribe en cursos
-            val showFab = (userType == "PROFESSOR" && currentDestination == RouteMainMenu.Posts.route) ||
+            // Proyecto 01: sólo el estudiante usa "+" en Cursos (el docente comparte su código)
+            val showFab = currentDestination == RouteScreen.Posts.route ||
                     (userType == "STUDENT" && currentDestination == RouteMainMenu.Courses.route)
             if (showFab) {
                 FloatingActionButton(

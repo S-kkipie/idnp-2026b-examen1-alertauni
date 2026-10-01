@@ -39,6 +39,8 @@ Leyenda: ✅ hecho · 🟡 parcial · ⬜ pendiente (lo hace el grupo)
 
 ### Actividad 2 · Evaluación de funcionalidades existentes (C2 · 8 pts)
 
+> Sólo **análisis y propuesta**, como pide el enunciado: no se modificó el código de la app (los fragmentos del informe son ilustrativos).
+
 | Pide el enunciado | Estado | Dónde / qué se hizo |
 |---|---|---|
 | Al menos **dos** funcionalidades a mejorar, pensando en usuarios reales | ✅ | **Mejora 1**: incorporación a curso con estados explícitos. **Mejora 2**: tablero de anuncios (actualizar, estados de carga/vacío/error, confirmación al publicar, botón según rol) |
@@ -46,17 +48,16 @@ Leyenda: ✅ hecho · 🟡 parcial · ⬜ pendiente (lo hace el grupo)
 | Comportamiento que debería modificarse | ✅ | Informe §2, "Comportamiento esperado" (con diagrama de estados) |
 | Recursos de Android/Compose necesarios | ✅ | Informe §2, tablas de recursos |
 | Justificar por qué son apropiados | ✅ | Mismas tablas, columnas "Justificación" y "Restricciones" |
-| Integración con la arquitectura existente | ✅ | Informe §2, "Integración con la arquitectura" + **implementado en código** |
-| (extra) Correcciones encontradas en el análisis | ✅ | NavHost duplicado, permiso `POST_NOTIFICATIONS`, base Room única en el servicio FCM |
+| Integración con la arquitectura existente | ✅ | Informe §2, "Integración con la arquitectura (propuesta)" y archivos que se modificarían |
 
 ### Actividad 3 · Evolución del aplicativo (C1 · 4 pts)
 
 | Pide el enunciado | Estado | Dónde / qué se hizo |
 |---|---|---|
 | Al menos **dos** funcionalidades nuevas | ✅ | Informe §3: P1 Bandeja de avisos, P2 Consultas privadas del estudiante, P3 Confirmación de lectura, P4 Unirse por QR |
-| Desarrollar técnicamente al menos una | ✅ | **P1 Bandeja de avisos**, implementada: pestaña "Avisos", Room con `Flow`, repositorio, módulo Hilt |
+| Desarrollar técnicamente al menos una | ✅ | **P1 Bandeja de avisos**, con **implementación parcial justificada** (informe §3, "Alcance del prototipo"): pestaña "Avisos", Room con `Flow`, repositorio y módulo Hilt. Quedan como trabajo futuro: leídos/no leídos, abrir el anuncio relacionado, mensajes *data* en el backend y sincronización |
 | Necesidad, comportamiento esperado, recursos, estados/eventos, responsabilidades e integración | ✅ | Informe §3 (evaluación de alternativas, diagramas de estados y de capas, restricciones) |
-| Evidencia técnica de viabilidad | ✅ | Código compilado (`assembleDebug`) y 2 `@Preview` de la bandeja |
+| Evidencia técnica de viabilidad | ✅ | Código compilado (`assembleDebug`) y 2 `@Preview` de la bandeja. Incluye las correcciones que el prototipo necesita: NavHost duplicado, permiso `POST_NOTIFICATIONS` y base Room única |
 
 ### Sustentación
 
