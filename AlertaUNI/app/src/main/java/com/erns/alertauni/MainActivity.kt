@@ -41,7 +41,6 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             AlertaUNITheme {
-                MainAppNavigation()
                 Scaffold(
                     modifier = Modifier
                         .fillMaxSize()
