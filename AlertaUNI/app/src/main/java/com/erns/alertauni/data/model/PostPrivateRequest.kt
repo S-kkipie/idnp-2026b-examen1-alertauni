@@ -9,5 +9,6 @@ data class PostPrivateRequest (
 @SerialName("title") val title: String,
 @SerialName("content") val content: String,
 @SerialName("receiver_private") val receiverPrivate: String,
-@SerialName("allow_comments") val allowComments: Boolean
+@SerialName("allow_comments") val allowComments: Boolean,
+@SerialName("priority") val priority: String? = null
 )
