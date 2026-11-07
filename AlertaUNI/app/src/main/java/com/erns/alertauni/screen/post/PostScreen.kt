@@ -108,6 +108,7 @@ fun PostScreen(
     val postViewModel: PostViewModel = hiltViewModel()
     val state by postViewModel.uiState.collectAsState()
     val catalogCourses by postViewModel.catalogCourses.collectAsState()
+    val students by postViewModel.students.collectAsState()
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
@@ -178,13 +179,13 @@ fun PostScreen(
     BackHandler(enabled = state.showArchived) { postViewModel.setShowArchived(false) }
 
     if (showComposer && catalogCourses.isNotEmpty()) {
-        AddPostDialog(
-            onDismiss = { showComposer = false },
-            onClickNewPost = { courseCatalogId, _, _, titlePost, contentPost ->
-                showComposer = false
-                postViewModel.sendPost(courseCatalogId, titlePost, contentPost)
-            },
-            catalogCourses = catalogCourses
+        NewAnnouncementSheet(
+            courses = catalogCourses,
+            students = students,
+            canSendPrivate = state.isTeacher,
+            audienceFor = postViewModel::audienceFor,
+            onSend = postViewModel::send,
+            onDismiss = { showComposer = false }
         )
     }
 
