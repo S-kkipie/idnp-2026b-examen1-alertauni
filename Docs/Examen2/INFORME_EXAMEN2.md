@@ -179,3 +179,55 @@ Sólo los que influyen en el diseño o la interacción:
 | Público / privado y prioridad | `SingleChoiceSegmentedButtonRow` + `SegmentedButton` | Opciones excluyentes y visibles a la vez, mejor que un desplegable. |
 | Estudiante elegido | `InputChip` con ✕ | Confirma la selección y permite quitarla con un toque. |
 | Comentarios al crear | `Switch` | Control binario estándar. |
+
+---
+
+## 4. Justificación y evaluación de la propuesta (Tarea 4)
+
+### 4.1 ¿Por qué es más adecuada que la actual?
+
+| Indicador | Actual | Propuesta |
+|--------------------|-------------------|-------------------|
+| Anuncios visibles por pantalla | ~2,5 | ~4,5 |
+| Pasos para un privado (T2) | 6 o más, en otra pestaña | 5, sin salir del muro y sin saber el curso |
+| Encontrar un anuncio (T3) | Sólo scroll | Escribir o tocar un chip |
+| Datos obligatorios mostrados | Faltan prioridad y destinatario | Todos |
+| Archivar (T4) | No existe | Deslizar o menú, con Deshacer |
+| Elementos redundantes | Nombre del docente ×2 por tarjeta + cabecera | Ninguno |
+
+### 4.2 Decisiones que la hacen simple e intuitiva
+
+- **Un solo punto de entrada para crear.** El tipo de anuncio sale de responder "¿para quién?", que es como piensa el docente.
+- **El destinatario siempre visible:** primero en el formulario, en el chip, en el botón y en la tarjeta.
+- **Reconocer en vez de recordar:** el buscador y los filtros están a la vista, y los íconos de tipo son distintos y con significado.
+- **Menos es más:** se quitaron el autor, el avatar, la cabecera de 100 dp y los segundos de la fecha. Esto deja el espacio para la prioridad y para más anuncios.
+- **Prevención y reversibilidad:** el envío se deshabilita mientras faltan datos, cerrar con texto escrito pide confirmación y archivar se puede deshacer.
+- **Consistencia con Material 3:** chips, segmentados, deslizar y Snackbar se comportan como en otras apps Android.
+
+### 4.3 Dificultades que podría tener el usuario (y cómo las mitigamos)
+
+| Dificultad | Mitigación |
+|---------------------------|-----------------------------------|
+| No descubrir el gesto de deslizar para archivar | La misma acción está en el menú ⋮. |
+| Archivar por error | Snackbar con Deshacer y vista de Archivados. |
+| Usar prioridad Alta en todo y saturar a los estudiantes con notificaciones | Prioridad Media por defecto y texto de ayuda: "Llega como notificación inmediata". |
+| Estudiantes con nombres parecidos | El resultado muestra el CUI y el curso, y se puede buscar por CUI. |
+| Mismo estudiante en dos cursos del docente | Aparece una vez por curso, así el docente elige el contexto. |
+| Buscador y chips ocupan espacio en pantallas pequeñas | Se compensa con la cabecera eliminada y tarjetas compactas; la barra superior puede ocultarse al hacer scroll. |
+| La fecha relativa es ambigua en anuncios viejos | Después de 7 días se muestra la fecha ("31 may") y la exacta está en el detalle. |
+
+También hay **dificultades de implementación**. `stickyHeader` y algunas APIs de `SearchBar` son experimentales en Material 3 y cambian entre versiones. El FAB que se contrae requiere observar el estado de scroll. El backend aún no guarda la **prioridad** ni el **archivado**: hacen falta las columnas `post.priority` y `post.archived_at` y una función para actualizar el anuncio. Por eso, en el prototipo esos datos viven sólo en el cliente (sección 5).
+
+### 4.4 ¿Cómo comprobaríamos que facilita las tareas del docente?
+
+1. **Prueba de usabilidad con 5 participantes:** docentes o, en su defecto, estudiantes en el rol de docente. Cada uno hace T1–T4 en la versión actual y en el prototipo, en orden alternado, pensando en voz alta.
+2. **Métricas por tarea:**
+   - Tasa de éxito.
+   - Tiempo.
+   - Número de toques.
+   - **Errores críticos:** enviar a un destinatario equivocado o archivar sin querer.
+
+   Metas: T2 en menos de 30 s, T3 en menos de 15 s y cero envíos al destinatario equivocado.
+3. **Prueba de 5 segundos:** se muestra el muro y se pregunta cuáles anuncios son privados y cuáles urgentes. Mide si los íconos y la prioridad se entienden sin explicación.
+4. **Cuestionario SUS** al final (meta: 68 puntos o más) y comentarios abiertos.
+5. **En producción:** métricas de uso de búsqueda y filtros, tasa de "Deshacer" (si es alta, el gesto confunde) y anuncios enviados por prioridad.
