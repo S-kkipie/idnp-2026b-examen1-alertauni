@@ -147,3 +147,35 @@ Las maquetas están en `Docs/Examen2/maquetas/` (HTML navegable y PNG). Usan la 
 ![Figura 6. Menú de la tarjeta (izq.), búsqueda sin resultados (centro) y vista de archivados (der.).](img/final-gestion.png)
 
 ![Figura 7. Interacción principal: anuncio privado en tres pasos sin salir del muro.](maquetas/00-flujo-privado.png)
+
+### 3.2 Interacciones principales del docente
+
+| Acción | Gesto | Resultado / retroalimentación |
+|-----------|---------------------|-------------------------------|
+| Buscar | Escribir en el buscador | La lista se filtra mientras escribe, las coincidencias se resaltan y aparece "N resultados · Limpiar". |
+| Filtrar | Tocar chips (Públicos, Privados, Prioridad alta, curso) | Se combinan con el texto. "Limpiar" quita todos. |
+| Abrir comentarios | Tocar la tarjeta | Pantalla de comentarios (sin cambios). |
+| Archivar | Deslizar a la izquierda o ⋮ → Archivar | Snackbar "Anuncio archivado · Deshacer". |
+| Comentarios on/off | ⋮ → Desactivar / Activar comentarios | La tarjeta muestra "Comentarios cerrados". |
+| Nuevo anuncio | Botón "Nuevo anuncio" (se contrae a "+" al hacer scroll) | Hoja inferior con *Para → curso o estudiante → prioridad → texto → Enviar a…* |
+
+### 3.3 Layouts y componentes de Jetpack Compose
+
+Sólo los que influyen en el diseño o la interacción:
+
+| Decisión de diseño | Layout / componente | Por qué este y no otro |
+|----------------|---------------------|-----------------------|
+| Estructura de la pantalla | `Scaffold` + `TopAppBar` | Coloca barra, contenido, FAB y Snackbar sin superponerse. |
+| Búsqueda siempre visible | `OutlinedTextField` con ícono de búsqueda y botón limpiar (o `SearchBarDefaults.InputField`) | Visible sin un toque previo. El estado del texto vive en el `ViewModel`. |
+| Filtros combinables | `LazyRow` + `FilterChip` | Chip seleccionado con check: el estado del filtro se ve. Se desplaza si hay muchos cursos. |
+| Lista larga agrupada | `LazyColumn` + `stickyHeader` + `items(key = id)` | Sólo compone lo visible. Los encabezados por fecha quedan fijos al hacer scroll. |
+| Tarjeta adaptable | `Card` + `Row`/`Column` sin altura fija, `maxLines = 2` + `TextOverflow.Ellipsis` | Corrige la altura fija de 220 dp. |
+| Resaltar coincidencias | `buildAnnotatedString` + `SpanStyle` | Muestra por qué apareció cada resultado. |
+| Archivar con gesto | `SwipeToDismissBox` | Gesto estándar de Material 3. Se complementa con el menú para quien no conoce el gesto. |
+| Deshacer | `SnackbarHostState.showSnackbar(actionLabel = "Deshacer")` | Prevención de errores sin diálogos de confirmación que interrumpen. |
+| Acciones de la tarjeta | `DropdownMenu` desde `IconButton` ⋮ | Agrupa acciones secundarias sin ensuciar la tarjeta. |
+| Crear anuncio | `ExtendedFloatingActionButton(expanded = …)` | Texto explícito "Nuevo anuncio" que se contrae al hacer scroll para no tapar contenido. |
+| Formulario de envío | `ModalBottomSheet` | Mantiene el contexto del muro y se adapta al teclado. Reemplaza al `Dialog` actual. |
+| Público / privado y prioridad | `SingleChoiceSegmentedButtonRow` + `SegmentedButton` | Opciones excluyentes y visibles a la vez, mejor que un desplegable. |
+| Estudiante elegido | `InputChip` con ✕ | Confirma la selección y permite quitarla con un toque. |
+| Comentarios al crear | `Switch` | Control binario estándar. |
