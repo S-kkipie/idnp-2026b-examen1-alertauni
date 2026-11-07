@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -37,6 +38,8 @@ import com.erns.alertauni.screen.notification.NotificationScreen
 import com.erns.alertauni.screen.login.ProfileScreen
 import com.erns.alertauni.screen.post.PostCommentScreen
 import com.erns.alertauni.screen.post.PostScreen
+import com.erns.alertauni.ui.theme.MyPrimaryColor
+import com.erns.alertauni.ui.theme.MyPrimaryForegroundColor
 
 
 @Composable
@@ -80,6 +83,8 @@ fun MainAppNavigation(navController: NavHostController = rememberNavController()
 fun MainMenuScreen(userType: String) {
     val items = mutableListOf<RouteMainMenu>()
     val fabAction = remember { mutableStateOf<() -> Unit>({}) }
+    // El muro lo contrae a sólo ícono mientras se hace scroll
+    val postsFabExpanded = remember { mutableStateOf(true) }
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
     val currentBackStackEntry = navController.currentBackStackEntryAsState()
@@ -121,7 +126,21 @@ fun MainMenuScreen(userType: String) {
             // Proyecto 01: sólo el estudiante usa "+" en Cursos (el docente comparte su código)
             val showFab = currentDestination == RouteScreen.Posts.route ||
                     (userType == "STUDENT" && currentDestination == RouteMainMenu.Courses.route)
-            if (showFab) {
+            if (currentDestination == RouteScreen.Posts.route) {
+                ExtendedFloatingActionButton(
+                    text = { Text("Nuevo anuncio") },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = if (postsFabExpanded.value) null else "Nuevo anuncio"
+                        )
+                    },
+                    onClick = fabAction.value,
+                    expanded = postsFabExpanded.value,
+                    containerColor = MyPrimaryColor,
+                    contentColor = MyPrimaryForegroundColor
+                )
+            } else if (showFab) {
                 FloatingActionButton(
                     shape = CircleShape,
                     onClick = fabAction.value
@@ -165,7 +184,8 @@ fun MainMenuScreen(userType: String) {
                         navController.navigate(RouteScreen.Comment.route + "/$postId")
                     },
                     snackbarHostState = snackbarHostState,
-                    onFabActionReady = { fabAction.value = it }
+                    onFabActionReady = { fabAction.value = it },
+                    onFabExpandedChange = { postsFabExpanded.value = it }
                 )
             }
             composable(
