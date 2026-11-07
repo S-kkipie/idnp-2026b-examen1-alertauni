@@ -4,6 +4,7 @@ import com.erns.alertauni.common.safeInvoke
 import com.erns.alertauni.data.model.CatalogCourseEntity
 import com.erns.alertauni.data.model.PostAddResponse
 import com.erns.alertauni.data.model.PostEntity
+import com.erns.alertauni.data.model.PostPrivateRequest
 import com.erns.alertauni.data.model.PostRequest
 import com.erns.alertauni.data.model.SupabaseListResponse
 import com.erns.alertauni.data.model.SupabaseSimpleResponse
@@ -23,6 +24,12 @@ class PostDataSource @Inject constructor(
         // Return true if status is 201 (Created) or 200 (OK)
         //return response.status.value in 200..299
 
+    }
+
+    // service-post-private-add responde {post_id, created_at}, igual que service-post-add
+    suspend fun callInsertPrivateEndpoint(postPrivateRequest: PostPrivateRequest): SupabaseSimpleResponse<PostAddResponse> {
+        val response = supabaseClient.functions.safeInvoke(ApiConstants.ADD_POST_PRIVATE, postPrivateRequest)
+        return response.body<SupabaseSimpleResponse<PostAddResponse>>()
     }
 
     suspend fun callPostsEndpoint(): SupabaseListResponse<PostEntity> {
