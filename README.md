@@ -1,12 +1,13 @@
-# AlertaUNI — IDNP 2026B (Examen 1 + Proyecto Integrador Parte 1)
+# AlertaUNI — IDNP 2026B (Examen 1 + Proyecto Integrador Parte 1 + Examen 2)
 
 Aplicación Android (Jetpack Compose + Hilt + Supabase + FCM) para la comunicación académica entre docentes y estudiantes de un curso universitario.
-Este repositorio contiene el **proyecto base del curso** y el trabajo de dos entregas:
+Este repositorio contiene el **proyecto base del curso** y el trabajo de tres entregas:
 
 | Entrega | Informe | Tema |
 |---|---|---|
 | **Examen 1 – 2026B** | [`Docs/Examen1/INFORME_EXAMEN1.md`](Docs/Examen1/INFORME_EXAMEN1.md) | Comprender, mejorar y hacer evolucionar la app existente |
 | **Proyecto Integrador – Parte 1** | [`Docs/Proyecto01/INFORME_PROYECTO01.md`](Docs/Proyecto01/INFORME_PROYECTO01.md) | Diseño del proceso de incorporación de estudiantes a un curso |
+| **Examen 2 – 2026B** | [`Docs/Examen2/INFORME_EXAMEN2.md`](Docs/Examen2/INFORME_EXAMEN2.md) · [maquetas](Docs/Examen2/maquetas/maquetas.html) | Análisis y rediseño del Muro de Anuncios: anuncios públicos y privados, búsqueda, prioridad y archivado |
 
 ## Integrantes (Grupo B7)
 
@@ -140,13 +141,24 @@ Leyenda: ✅ hecho · 🟡 parcial · ⬜ pendiente (lo hace el grupo)
 - ✅ Prototipo exportado a Figma.
 - ⬜ **Sustentación**: cada integrante debe poder explicar el flujo, las decisiones, los recursos, el estado y los eventos, y la relación entre Figma y el código (guía en el informe §9 y la tabla del §8).
 
+## 3. Examen 2 — Muro de Anuncios
+
+| Tarea del enunciado | Dónde está | Estado |
+|---|---|---|
+| 1. Análisis de los problemas de la interfaz actual | Informe §1 (captura anotada, Tabla 1, recorrido de tareas) | ✅ |
+| 2. Dos o más alternativas por problema, comparación y elección | Informe §2 (wireframes y matrices ponderadas) | ✅ |
+| 3. Maquetas y componentes de Jetpack Compose | Informe §3 · `Docs/Examen2/maquetas/` | ✅ |
+| 4. Justificación y evaluación | Informe §4 | ✅ |
+| Prototipo en Compose (opcional) | `screen/post/` (`PostScreen`, `AnnouncementCard`, `NewAnnouncementSheet`) y `domain/post/` | 🟡 prioridad, archivado y activar/desactivar comentarios sólo en el cliente (el backend aún no tiene esas columnas) |
+| Preguntas y respuestas a la IA | Informe, Anexo A | ✅ |
+
 ---
 
 ## Verificación
 
 ```bash
 cd AlertaUNI
-./gradlew :app:testDebugUnitTest   # JoinCodeTest: 5/5 OK
+./gradlew :app:testDebugUnitTest   # 41 pruebas: JoinCode + Muro de Anuncios (filtro, fechas, prioridad, destinatario, JSON)
 ./gradlew :app:assembleDebug       # compila (Hilt + Room)
 ```
 
