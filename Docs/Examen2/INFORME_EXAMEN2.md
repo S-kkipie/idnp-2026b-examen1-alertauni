@@ -131,3 +131,19 @@ Criterios de comparación, tomados del enunciado: **simplicidad** (pocos control
 | Autor | Avatar + nombre | Se elimina | Siempre es el propio docente. |
 
 **Archivar.** Se hace deslizando la tarjeta hacia la izquierda o desde el menú ⋮. Aparece un Snackbar con **Deshacer**, y los archivados se ven en su propia vista (ícono de archivo en la barra superior). Así el muro queda despejado sin perder nada. El menú ⋮ también permite **activar o desactivar los comentarios** de cada anuncio.
+
+---
+
+## 3. Diseño de la interfaz (Tarea 3)
+
+### 3.1 Maquetas
+
+Las maquetas están en `Docs/Examen2/maquetas/` (HTML navegable y PNG). Usan la paleta y tipografía de la app.
+
+![Figura 4. Muro (izq.), búsqueda «proyecto» con filtros activos (centro) y archivar deslizando con Deshacer (der.).](img/final-muro.png)
+
+![Figura 5. Nuevo anuncio: público a un curso (izq.), búsqueda de estudiante entre todos los cursos (centro) y privado listo con prioridad Alta (der.).](img/final-nuevo.png)
+
+![Figura 6. Menú de la tarjeta (izq.), búsqueda sin resultados (centro) y vista de archivados (der.).](img/final-gestion.png)
+
+![Figura 7. Interacción principal: anuncio privado en tres pasos sin salir del muro.](maquetas/00-flujo-privado.png)
