@@ -8,5 +8,7 @@ data class PostRequest(
     val title: String,
     val content: String,
     val is_private: Boolean,
-    val allow_comments: Boolean
+    val allow_comments: Boolean,
+    // Opcional: con valor null no se serializa (encodeDefaults = false)
+    val priority: String? = null
 )
