@@ -24,3 +24,8 @@ val MySelectedColor = Color(0xFFB8C4F5)
 val MySecondaryForegroundColor = Color(0xFF1e3a8a)
 val MyMutedColor = Color(0xFFf1f5f9)
 val MyMutedForegroundColor = Color(0xFF64748b)
+
+// Prioridad de anuncios (siempre acompañada del texto Alta/Media/Baja)
+val MyPriorityHighColor = Color(0xFFDC2626)
+val MyPriorityMediumColor = Color(0xFFD97706)
+val MyPriorityLowColor = Color(0xFF94A3B8)
