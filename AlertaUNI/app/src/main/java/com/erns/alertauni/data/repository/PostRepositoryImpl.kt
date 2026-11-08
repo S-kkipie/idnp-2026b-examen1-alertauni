@@ -7,6 +7,7 @@ import com.erns.alertauni.data.model.BackendException
 import com.erns.alertauni.data.model.PostEntity
 import com.erns.alertauni.data.model.CatalogCourseEntity
 import com.erns.alertauni.data.model.PostAddResponse
+import com.erns.alertauni.data.model.PostPrivateRequest
 import com.erns.alertauni.data.model.PostRequest
 import com.erns.alertauni.data.remote.PostDataSource
 import io.github.jan.supabase.exceptions.HttpRequestException
@@ -22,6 +23,15 @@ class PostRepositoryImpl @Inject constructor(
     override suspend fun sendPost(postRequest: PostRequest): Result<PostAddResponse> {
         return try {
             val success = postDataSource.callInsertEndpoint(postRequest)
+            Result.success(success.data)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun sendPostPrivate(postPrivateRequest: PostPrivateRequest): Result<PostAddResponse> {
+        return try {
+            val success = postDataSource.callInsertPrivateEndpoint(postPrivateRequest)
             Result.success(success.data)
         } catch (e: Exception) {
             Result.failure(e)
