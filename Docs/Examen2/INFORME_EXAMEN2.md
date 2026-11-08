@@ -87,3 +87,47 @@ Criterios de comparación, tomados del enunciado: **simplicidad** (pocos control
 1. **Antes:** el destinatario es la primera decisión y el curso se deduce del estudiante elegido.
 2. **Durante:** el chip del estudiante elegido y el texto de ayuda de la prioridad informan del efecto de cada opción.
 3. **Al confirmar:** el botón repite el destinatario, el envío se deshabilita mientras falten datos y cerrar con texto escrito pide confirmación.
+
+### 2.2 Problema 2 — Visualización y búsqueda de anuncios
+
+![Figura 3. Alternativas para el Problema 2 (A: lupa expandible, B: buscador + filtros + grupos por fecha, C: pestañas por curso).](img/p2-alternativas.png)
+
+- **A. Lupa en la cabecera que se expande**, con la lista ordenada por fecha.
+  - *Ventajas:* casi no ocupa espacio.
+  - *Limitaciones:* la búsqueda queda escondida (el problema actual), no se pueden combinar filtros y no se sabe en qué campos busca.
+- **B. Buscador siempre visible, chips de filtro y lista agrupada por fecha**, con tarjetas compactas.
+  - El buscador mira título, contenido, curso y nombre del destinatario, sin distinguir mayúsculas ni tildes, y resalta las coincidencias.
+  - Los chips filtran por tipo, prioridad alta y curso.
+  - Los encabezados *Hoy · Ayer · Esta semana · Mes* dan orientación temporal.
+  - *Ventajas:* todo se ve de un vistazo y se combina.
+  - *Limitaciones:* ocupa unos 100 dp arriba, espacio que se recupera al quitar la cabecera de 100 dp y compactar las tarjetas.
+- **C. Pestañas por curso** (`ScrollableTabRow`) con búsqueda.
+  - *Ventajas:* separa los cursos.
+  - *Limitaciones:* con 5 o más cursos las pestañas se desbordan, no se puede buscar entre cursos y un privado queda escondido dentro de su curso.
+
+**Tabla 3.** Comparación ponderada, Problema 2.
+
+| Criterio (peso) | A. Lupa | **B. Buscador + chips** | C. Pestañas |
+|---|:-:|:-:|:-:|
+| Rapidez para encontrar (30 %) | 3 | **5** | 3 |
+| Visibilidad / descubrimiento (25 %) | 2 | **5** | 4 |
+| Escala con muchos cursos y anuncios (20 %) | 3 | **5** | 2 |
+| Espacio en pantalla (15 %) | 5 | **3** | 3 |
+| Costo de implementación (10 %) | 5 | **4** | 4 |
+| **Total** | 3,25 | **4,60** | 3,15 |
+
+**Elegimos B** y lo complementamos con decisiones sobre la información de cada tarjeta (Tabla 4) para que entren más anuncios por pantalla sin perder ningún dato obligatorio.
+
+**Tabla 4.** Información de cada anuncio: antes y después.
+
+| Dato (enunciado) | Antes | Después | Motivo |
+|-----------|-------------|---------------------|---------------------|
+| Acrónimo del curso | Chip gris | Se mantiene | Ya era claro y compacto. |
+| Tipo | Ícono igual + palabra | Ícono distinto: grupo (público) o candado (privado) + **"Para: nombre"** en privados | El ícono basta para el tipo; en el privado lo importante es a quién. |
+| Título y contenido | 24 sp / 18 sp, altura fija | 16 sp / 14 sp, contenido en 2 líneas con "…" | La tarjeta se adapta al texto. El detalle completo está al tocarla. |
+| Prioridad | No existía | Franja lateral de color + etiqueta *Alta / Media / Baja* | El color se ve de lejos y el texto no depende del color (daltonismo). |
+| N.º de comentarios | Botón de texto | Ícono + número, o "Comentarios cerrados" | Muestra también si los comentarios están activos. |
+| Fecha y hora | `2026-05-31 01:36:32` | *hace 2 h · ayer 14:30 · 31 may* | Más corta y fácil de leer. La fecha exacta se ve en el detalle. |
+| Autor | Avatar + nombre | Se elimina | Siempre es el propio docente. |
+
+**Archivar.** Se hace deslizando la tarjeta hacia la izquierda o desde el menú ⋮. Aparece un Snackbar con **Deshacer**, y los archivados se ven en su propia vista (ícono de archivo en la barra superior). Así el muro queda despejado sin perder nada. El menú ⋮ también permite **activar o desactivar los comentarios** de cada anuncio.
