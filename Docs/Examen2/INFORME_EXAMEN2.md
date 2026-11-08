@@ -49,3 +49,41 @@ Alcance acordado con el docente: sólo la pantalla principal del muro (no el cha
 | T4 · Archivar | No existe | El muro sólo crece. |
 
 **Qué conservamos:** la barra inferior (Posts · Contactos · Cursos), la paleta azul de la app, el "+" como punto de entrada para crear, el chip con el acrónimo del curso y el contador de comentarios. Funcionan y el usuario ya los conoce.
+
+---
+
+## 2. Propuesta de soluciones (Tarea 2)
+
+Criterios de comparación, tomados del enunciado: **simplicidad** (pocos controles y pasos), **claridad de la interacción** (se entiende con sólo mirar) y **prevención de errores**. Agregamos el **costo de implementación** en Compose. Puntaje de 1 a 5.
+
+### 2.1 Problema 1 — Envío de anuncios públicos y privados
+
+![Figura 2. Alternativas para el Problema 1 (A: dos botones, B: campo «Para», C: privado desde Contactos).](img/p1-alternativas.png)
+
+- **A. Dos botones o FAB desplegable.** El "+" se abre en "Anuncio público" y "Anuncio privado".
+  - *Ventajas:* el tipo se elige de forma explícita.
+  - *Limitaciones:* son dos puntos de entrada y el docente debe decidir el tipo antes de pensar en el destinatario. Compose no trae un *speed dial* nativo, hay que construirlo con `AnimatedVisibility`. Además tapa más contenido.
+- **B. Un solo botón "Nuevo anuncio" con campo «Para».** Una hoja inferior empieza por el destinatario: `Todo un curso | Un estudiante`.
+  - En *Un estudiante*, un único buscador encuentra al alumno entre **todos** los cursos del docente, por nombre o CUI, y fija el curso automáticamente.
+  - El botón de envío dice a quién llega: *"Enviar a 32 estudiantes de INF-01"* o *"Enviar sólo a Luis Quispe"*.
+  - *Ventajas:* un solo flujo y destinatario siempre visible.
+  - *Limitaciones:* hay un control más en el formulario y hay que cargar los estudiantes.
+- **C. Mantener el privado en Contactos** y enlazarlo desde el muro.
+  - *Ventajas:* casi no cambia el código.
+  - *Limitaciones:* sigue siendo poco descubrible, toma 6 pasos o más y obliga a recorrer curso por curso.
+
+**Tabla 2.** Comparación ponderada, Problema 1.
+
+| Criterio (peso) | A. Dos botones | **B. Campo «Para»** | C. Contactos |
+|---|:-:|:-:|:-:|
+| Simplicidad (30 %) | 3 | **5** | 2 |
+| Claridad de quién recibe (30 %) | 4 | **5** | 3 |
+| Prevención de errores (25 %) | 3 | **5** | 3 |
+| Costo de implementación (15 %) | 2 | **4** | 5 |
+| **Total** | 3,15 | **4,85** | 3,00 |
+
+**Elegimos B.** Resuelve el reto que planteó el docente: enviar un privado a un estudiante sin entrar al curso ni recorrer la lista. Lo hace con **un solo punto de entrada**, así que no hay botones duplicados. Previene errores en tres momentos:
+
+1. **Antes:** el destinatario es la primera decisión y el curso se deduce del estudiante elegido.
+2. **Durante:** el chip del estudiante elegido y el texto de ayuda de la prioridad informan del efecto de cada opción.
+3. **Al confirmar:** el botón repite el destinatario, el envío se deshabilita mientras falten datos y cerrar con texto escrito pide confirmación.
