@@ -231,3 +231,74 @@ También hay **dificultades de implementación**. `stickyHeader` y algunas APIs 
 3. **Prueba de 5 segundos:** se muestra el muro y se pregunta cuáles anuncios son privados y cuáles urgentes. Mide si los íconos y la prioridad se entienden sin explicación.
 4. **Cuestionario SUS** al final (meta: 68 puntos o más) y comentarios abiertos.
 5. **En producción:** métricas de uso de búsqueda y filtros, tasa de "Deshacer" (si es alta, el gesto confunde) y anuncios enviados por prioridad.
+
+---
+
+## 5. Prototipo en Jetpack Compose (opcional)
+
+Para comprobar que el diseño es implementable con las APIs del proyecto, construimos un prototipo del muro y de la hoja de nuevo anuncio. Compila (`./gradlew :app:assembleDebug`) y tiene **41 pruebas unitarias** que pasan (`./gradlew :app:testDebugUnitTest`): filtro, fecha relativa, prioridad, destinatario y formato JSON de los modelos.
+
+- **Real, con el backend actual:**
+  - Lista de anuncios.
+  - Envío público (`service-post-add`) y privado (`service-post-private-add`, que ya existía para Contactos).
+  - `allow_comments` al crear.
+  - Estudiantes de cada curso (`service-course-student`).
+- **Sólo en el cliente (prototipo):** prioridad, archivado y activar o desactivar comentarios de un anuncio ya publicado. Se guardan en memoria del `ViewModel`. Los modelos ya tienen el campo opcional `priority` para cuando el backend lo devuelva.
+- **Lógica pura y probada** (`domain/post/`): filtro por texto, tipo, curso y prioridad sin tildes ni mayúsculas, fecha relativa y agrupación por día.
+- **Roles:** el estudiante sigue viendo el muro como antes. En la hoja de nuevo anuncio no tiene la opción «Un estudiante», y en sus anuncios privados aparece «Para ti».
+- **No probado en dispositivo:** el prototipo se verificó compilando y con pruebas unitarias. El repositorio no incluye las claves reales de Supabase, así que no se puede ejecutar contra el backend.
+
+**Fragmentos clave** (el código completo está en el repositorio, rama `main`):
+
+```kotlin
+// domain/post/AnnouncementFilter.kt — filtro puro: tipo, prioridad y curso con Y; cada palabra
+// buscada debe aparecer en algún campo, sin distinguir mayúsculas ni tildes.
+if (query.onlyHigh && item.priority != Priority.ALTA) return false
+val terms = terms(query.text)
+if (terms.isEmpty()) return true
+val haystack = normalize(listOf(item.title, item.content, item.courseCode,
+    item.courseName, item.recipientName.orEmpty()).joinToString("\n"))
+return terms.all { haystack.contains(it) }
+```
+
+```kotlin
+// domain/post/Audience.kt — el botón dice a quién llega el anuncio (prevención de errores)
+val sendLabel: String
+    get() = when {
+        recipientName != null -> "Enviar sólo a $recipientName"
+        hasCount -> "Enviar a ${students()} de $courseCode"
+        else -> "Publicar en $courseCode"
+    }
+```
+
+```kotlin
+// screen/post/PostScreen.kt — archivar es reversible: Snackbar con "Deshacer"
+is PostEvent.ArchivedChanged -> {
+    val result = snackbarHostState.showSnackbar(
+        message = if (event.archived) "Anuncio archivado" else "Anuncio desarchivado",
+        actionLabel = "Deshacer", duration = SnackbarDuration.Long)
+    if (result == SnackbarResult.ActionPerformed)
+        postViewModel.setArchived(event.postId, !event.archived, notify = false)
+}
+```
+
+**Errores existentes encontrados al construir el prototipo** (los reportamos, no forman parte del rediseño):
+
+- `PostPrivateResponse` espera un campo `published` que el backend no envía. Por eso el envío privado desde Contactos informa error aunque el anuncio sí se crea. El prototipo usa un método nuevo, `PostRepository.sendPostPrivate`, que lee `{post_id, created_at}`.
+- En `service-post-add/index.ts` se usa `courseCatalogIDs` sin definirlo. Si la función desplegada es igual a la del repositorio, publicar un anuncio público falla en el servidor.
+
+
+---
+
+## Anexo A. Uso de IA: principales preguntas y respuestas
+
+Usamos **Claude (Claude Code)** como apoyo para revisar el enunciado, analizar el código y prototipar. Las decisiones finales, los pesos de las matrices y la verificación son del grupo.
+
+| # | Pregunta al asistente | Respuesta resumida | Qué verificamos o decidimos |
+|--|----------------|------------------------|------------------|
+| 1 | Revisa el enunciado y el video de indicaciones del docente: ¿qué pide exactamente? | Resumió las 4 tareas y las indicaciones del video: sólo la pantalla del muro, sólo vertical, quitar el autor, fecha muy larga, ícono para público o privado, reto del privado entre varios cursos, máximo unas 10 páginas, anexar el uso de IA. | Contrastamos con el PDF y el video. |
+| 2 | ¿Qué problemas de diseño tiene `PostScreen.kt`? | Listó el ícono repetido, la lupa sin efecto (`searchQuery` sin uso), la altura fija de 220 dp, el FAB que tapa contenido, el autor redundante, la falta de prioridad y el privado escondido en Contactos. | Confirmamos cada uno en el código (Tabla 1) y en la app. |
+| 3 | ¿Cómo enviar públicos y privados sin dos botones y sin entrar al curso? | Propuso el speed dial, el campo «Para» con buscador entre cursos y el privado desde Contactos, con ventajas y limitaciones. | Definimos los criterios y pesos (Tabla 2) y elegimos B. |
+| 4 | ¿Cómo encontrar rápido un anuncio entre muchos? | Propuso la lupa expandible, el buscador con chips y grupos por fecha, y las pestañas por curso. | Elegimos B y decidimos qué datos mostrar en la tarjeta (Tabla 4). |
+| 5 | ¿Qué componentes de Compose implementan cada decisión? | Sugirió `FilterChip`, `stickyHeader`, `SwipeToDismissBox`, `ModalBottomSheet`, `SegmentedButton`, `InputChip` y `ExtendedFloatingActionButton`. | Comprobamos que existen en la versión de Material 3 del proyecto compilando el prototipo. |
+| 6 | ¿Cómo comprobar que el diseño facilita las tareas? | Propuso una prueba de usabilidad con tareas, métricas, prueba de 5 segundos y SUS. | Fijamos las metas de tiempo y errores (sección 4.4). |
