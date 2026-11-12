@@ -1,13 +1,14 @@
-# AlertaUNI — IDNP 2026B (Examen 1 + Proyecto Integrador Parte 1 + Examen 2)
+# AlertaUNI — IDNP 2026B (Examen 1 + Proyecto Integrador Partes 1 y 2 + Examen 2)
 
 Aplicación Android (Jetpack Compose + Hilt + Supabase + FCM) para la comunicación académica entre docentes y estudiantes de un curso universitario.
-Este repositorio contiene el **proyecto base del curso** y el trabajo de tres entregas:
+Este repositorio contiene el **proyecto base del curso** y el trabajo de cuatro entregas:
 
 | Entrega | Informe | Tema |
 |---|---|---|
 | **Examen 1 – 2026B** | [`Docs/Examen1/INFORME_EXAMEN1.md`](Docs/Examen1/INFORME_EXAMEN1.md) | Comprender, mejorar y hacer evolucionar la app existente |
 | **Proyecto Integrador – Parte 1** | [`Docs/Proyecto01/INFORME_PROYECTO01.md`](Docs/Proyecto01/INFORME_PROYECTO01.md) | Diseño del proceso de incorporación de estudiantes a un curso |
 | **Examen 2 – 2026B** | [`Docs/Examen2/INFORME_EXAMEN2.md`](Docs/Examen2/INFORME_EXAMEN2.md) · [maquetas](Docs/Examen2/maquetas/maquetas.html) | Análisis y rediseño del Muro de Anuncios: anuncios públicos y privados, búsqueda, prioridad y archivado |
+| **Proyecto Integrador – Parte 2** | [`Docs/Proyecto02/README.md`](Docs/Proyecto02/README.md) · [capturas](Docs/Proyecto02/capturas) | Implementación y validación del Muro de Anuncios: privados, búsqueda, borradores con Room, 44 anuncios de prueba y pruebas de usabilidad |
 
 ## Integrantes (Grupo B7)
 
@@ -152,13 +153,26 @@ Leyenda: ✅ hecho · 🟡 parcial · ⬜ pendiente (lo hace el grupo)
 | Prototipo en Compose (opcional) | `screen/post/` (`PostScreen`, `AnnouncementCard`, `NewAnnouncementSheet`) y `domain/post/` | 🟡 prioridad, archivado y activar/desactivar comentarios sólo en el cliente (el backend aún no tiene esas columnas) |
 | Preguntas y respuestas a la IA | Informe, Anexo A | ✅ |
 
+## 4. Proyecto Integrador Parte 2 — Implementación del Muro de Anuncios
+
+| Tarea del enunciado | Dónde está | Estado |
+|---|---|---|
+| 1. Interfaz en Compose (MVVM) | `screen/post/` | ✅ |
+| 2A. Anuncio privado con destinatario | `NewAnnouncementSheet`, `PostViewModel.send` | ✅ (integrado con backend) |
+| 2B. Búsqueda | `domain/post/AnnouncementFilter.kt` | ✅ |
+| 3. Borradores con Room, por cuenta | `data/local/DraftDao.kt`, `DraftCard.kt` | ✅ |
+| 4A. Pruebas con 40+ anuncios | `DemoAnnouncements` (44, simulados) + 90 pruebas | ✅ automatizadas · ⬜ checklist en dispositivo |
+| 4B. Usabilidad con 2+ personas ajenas | `Docs/Proyecto02/PRUEBAS_USABILIDAD.md` | ⬜ (lo hace el grupo) |
+| 4C. Evaluación y mejoras | `Docs/Proyecto02/README.md` §6 | 🟡 falta incorporar resultados de usabilidad |
+
 ---
 
 ## Verificación
 
 ```bash
 cd AlertaUNI
-./gradlew :app:testDebugUnitTest   # 41 pruebas: JoinCode + Muro de Anuncios (filtro, fechas, prioridad, destinatario, JSON)
+./gradlew :app:testDebugUnitTest   # 90 pruebas: JoinCode, Muro de Anuncios, borradores con Room (Robolectric) y capturas
+./gradlew :app:testDebugUnitTest -PgrabarCapturas   # regenera Docs/Proyecto02/capturas
 ./gradlew :app:assembleDebug       # compila (Hilt + Room)
 ```
 
