@@ -41,10 +41,21 @@ android {
     buildFeatures {
         compose = true
     }
+    // Robolectric: pruebas de Room en la JVM
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
     sourceSets {
         getByName("main") {
             java.srcDirs("src/main/java", "src/main/kotlin")
         }
+    }
+}
+
+// Esquema de Room versionado en el repositorio (app/schemas)
+kapt {
+    arguments {
+        arg("room.schemaLocation", "$projectDir/schemas")
     }
 }
 
@@ -105,6 +116,8 @@ dependencies {
     implementation(libs.gson)
 
     testImplementation(libs.junit)
+    testImplementation("org.robolectric:robolectric:4.16")
+    testImplementation("androidx.test:core-ktx:1.7.0")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
