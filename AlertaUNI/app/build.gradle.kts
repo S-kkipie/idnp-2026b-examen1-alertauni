@@ -41,9 +41,14 @@ android {
     buildFeatures {
         compose = true
     }
-    // Robolectric: pruebas de Room en la JVM
+    // Robolectric: pruebas de Room y capturas de pantalla (Roborazzi) en la JVM
     testOptions {
         unitTests.isIncludeAndroidResources = true
+        unitTests.all { test ->
+            // ./gradlew :app:testDebugUnitTest -PgrabarCapturas  -> escribe Docs/Proyecto02/capturas/*.png
+            test.systemProperty("roborazzi.test.record", project.hasProperty("grabarCapturas").toString())
+            test.systemProperty("capturas.dir", rootProject.file("../Docs/Proyecto02/capturas").absolutePath)
+        }
     }
     sourceSets {
         getByName("main") {
@@ -118,6 +123,10 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation("org.robolectric:robolectric:4.16")
     testImplementation("androidx.test:core-ktx:1.7.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.59.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.59.0")
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.ui.test.junit4)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
