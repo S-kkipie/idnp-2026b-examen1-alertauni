@@ -171,6 +171,23 @@ fun PostScreen(
                     is PostEvent.CommentsChanged -> snackbarHostState.showSnackbar(
                         if (event.enabled) "Comentarios activados" else "Comentarios desactivados"
                     )
+
+                    is PostEvent.DraftSaved -> snackbarHostState.showSnackbar("Borrador guardado")
+
+                    PostEvent.DraftNotSaved -> snackbarHostState.showSnackbar("No se pudo guardar el borrador")
+
+                    is PostEvent.DraftDeleted -> {
+                        val result = snackbarHostState.showSnackbar(
+                            message = "Borrador eliminado",
+                            actionLabel = "Deshacer",
+                            duration = SnackbarDuration.Long
+                        )
+                        if (result == SnackbarResult.ActionPerformed) postViewModel.undoDeleteDraft()
+                    }
+
+                    is PostEvent.DemoDataChanged -> snackbarHostState.showSnackbar(
+                        if (event.enabled) "${event.count} anuncios simulados en el muro" else "Datos de prueba ocultos"
+                    )
                 }
             }
         }

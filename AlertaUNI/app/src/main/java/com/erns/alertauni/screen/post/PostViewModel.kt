@@ -3,23 +3,31 @@ package com.erns.alertauni.screen.post
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.erns.alertauni.data.demo.DemoAnnouncements
 import com.erns.alertauni.data.model.BackendException
 import com.erns.alertauni.data.model.CatalogCourseEntity
 import com.erns.alertauni.data.model.CourseCatalogRequest
+import com.erns.alertauni.data.model.DraftEntity
 import com.erns.alertauni.data.model.PostEntity
 import com.erns.alertauni.data.model.PostPrivateRequest
 import com.erns.alertauni.data.model.PostRequest
+import com.erns.alertauni.data.repository.DraftRepository
+import com.erns.alertauni.data.repository.PostLocalStateRepository
 import com.erns.alertauni.data.repository.PostRepository
 import com.erns.alertauni.data.repository.StudentRepository
 import com.erns.alertauni.domain.manager.DataStoreHelper
-import com.erns.alertauni.domain.post.AnnouncementFilter
 import com.erns.alertauni.domain.post.AnnouncementQuery
 import com.erns.alertauni.domain.post.Audience
+import com.erns.alertauni.domain.post.DraftForm
+import com.erns.alertauni.domain.post.DraftMapper
+import com.erns.alertauni.domain.post.DraftRules
+import com.erns.alertauni.domain.post.DraftSummary
+import com.erns.alertauni.domain.post.LocalPostState
 import com.erns.alertauni.domain.post.Priority
-import com.erns.alertauni.domain.post.RelativeDate
 import com.erns.alertauni.domain.post.SearchableAnnouncement
 import com.erns.alertauni.domain.post.TypeFilter
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
@@ -30,7 +38,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -69,6 +80,8 @@ data class AnnouncementUi(
     val dateLabel: String,
     val publishedAt: Instant?,
     val isArchived: Boolean,
+    /** Anuncio de DemoAnnouncements: nunca llama al backend. */
+    val isSimulated: Boolean = false,
 ) {
     val searchable: SearchableAnnouncement
         get() = SearchableAnnouncement(title, content, courseCode, courseName, recipientName, isPrivate, priority)
@@ -81,14 +94,24 @@ data class PostUiState(
     val isLoading: Boolean = true,
     val loadFailed: Boolean = false,
     val query: AnnouncementQuery = AnnouncementQuery(),
-    val showArchived: Boolean = false,
+    val wallView: WallView = WallView.ACTIVE,
     val courseCodes: List<String> = emptyList(),
     val sections: List<AnnouncementSection> = emptyList(),
     val resultCount: Int = 0,
     /** Anuncios de la vista actual (activos o archivados) antes de buscar/filtrar. */
     val totalInView: Int = 0,
     val archivedCount: Int = 0,
-)
+    /** Hay una cuenta a la que asociar los borradores. */
+    val canUseDrafts: Boolean = false,
+    /** Borradores locales (Room) de la cuenta actual. */
+    val drafts: List<DraftSummary> = emptyList(),
+    val demoEnabled: Boolean = false,
+    val demoCount: Int = 0,
+) {
+    val showArchived: Boolean get() = wallView == WallView.ARCHIVED
+    val showDrafts: Boolean get() = wallView == WallView.DRAFTS
+    val draftCount: Int get() = drafts.size
+}
 
 data class AnnouncementDraft(
     val courseCatalogId: String,
@@ -97,6 +120,8 @@ data class AnnouncementDraft(
     val priority: Priority = Priority.MEDIA,
     val allowComments: Boolean = true,
     val recipient: StudentOption? = null,
+    /** Borrador del que sale este anuncio; se borra cuando el envío funciona. */
+    val draftId: Long? = null,
 )
 
 sealed interface PostEvent {
@@ -104,31 +129,37 @@ sealed interface PostEvent {
     data class SendFailed(val draft: AnnouncementDraft) : PostEvent
     data class ArchivedChanged(val postId: Int, val archived: Boolean) : PostEvent
     data class CommentsChanged(val enabled: Boolean) : PostEvent
+    data class DraftSaved(val updated: Boolean) : PostEvent
+    data object DraftNotSaved : PostEvent
+    data class DraftDeleted(val id: Long) : PostEvent
+    data class DemoDataChanged(val enabled: Boolean, val count: Int) : PostEvent
 }
 
 @HiltViewModel
 class PostViewModel @Inject constructor(
     private val repository: PostRepository,
     private val studentRepository: StudentRepository,
+    private val draftRepository: DraftRepository,
+    private val localStateRepository: PostLocalStateRepository,
     private val dataStoreHelper: DataStoreHelper
 ) : ViewModel() {
     private val TAG = "PostViewModel"
 
     private data class Meta(val isTeacher: Boolean = false, val isLoading: Boolean = true, val loadFailed: Boolean = false)
-    private data class ViewOptions(val query: AnnouncementQuery = AnnouncementQuery(), val showArchived: Boolean = false)
 
-    // Prototipo: el backend aún no guarda archivado, prioridad ni cambios de comentarios
-    private data class LocalEdits(
-        val archived: Set<Int> = emptySet(),
-        val comments: Map<Int, Boolean> = emptyMap(),
-        val priorities: Map<Int, Priority> = emptyMap(),
-    )
-
-    private data class Sources(
+    private data class Remote(
         val posts: List<PostEntity>,
         val students: List<StudentOption>,
         val courses: List<CatalogCourseEntity>,
         val meta: Meta,
+    )
+
+    private data class Local(
+        val owner: String?,
+        val drafts: List<DraftEntity>,
+        val states: Map<Int, LocalPostState>,
+        val demoEnabled: Boolean,
+        val demoPosts: List<PostEntity>,
     )
 
     private val _announcements = MutableStateFlow<List<PostEntity>>(emptyList())
@@ -144,8 +175,32 @@ class PostViewModel @Inject constructor(
     val username: StateFlow<String> = _username
 
     private val meta = MutableStateFlow(Meta())
-    private val view = MutableStateFlow(ViewOptions())
-    private val edits = MutableStateFlow(LocalEdits())
+    private val view = MutableStateFlow(WallViewOptions())
+
+    // Dueño de los datos locales: uid de la sesión (o correo). Sin dueño no se guarda nada.
+    private val ownerAsync = viewModelScope.async {
+        DraftRules.ownerOf(dataStoreHelper.getUserUid(), dataStoreHelper.getEmail())
+    }
+    private val owner: Flow<String?> = flow { emit(ownerAsync.await()) }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val draftEntities: Flow<List<DraftEntity>> = owner.flatMapLatest { o ->
+        if (o == null) flowOf(emptyList()) else draftRepository.observeDrafts(o)
+    }
+
+    // Prioridad, archivado y comentarios: Room (el backend aún no los guarda)
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val localStates: StateFlow<Map<Int, LocalPostState>> = owner.flatMapLatest { o ->
+        if (o == null) flowOf(emptyMap()) else localStateRepository.observe(o).map { LocalPostState.byPost(it, o) }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    private val demoEnabled: StateFlow<Boolean> =
+        dataStoreHelper.demoDataEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    private val demoPosts: Flow<List<PostEntity>> = demoEnabled.map { enabled ->
+        if (enabled) DemoAnnouncements.posts(ZonedDateTime.now()) else emptyList()
+    }
+
+    private var lastDeletedDraft: DraftEntity? = null
 
     private val _events = Channel<PostEvent>(Channel.BUFFERED)
     val events: Flow<PostEvent> = _events.receiveAsFlow()
@@ -160,11 +215,29 @@ class PostViewModel @Inject constructor(
 
     val uiState: StateFlow<PostUiState> =
         combine(
-            combine(_announcements, _students, _catalogCourses, meta, ::Sources),
+            combine(_announcements, _students, _catalogCourses, meta, ::Remote),
+            combine(owner, draftEntities, localStates, demoEnabled, demoPosts, ::Local),
             view,
-            edits,
             clock
-        ) { sources, view, edits, now -> buildState(sources, view, edits, now) }
+        ) { remote, local, view, now ->
+            PostUiStateBuilder.build(
+                WallSources(
+                    posts = remote.posts,
+                    studentNames = remote.students.associate { it.studentId to it.shortName },
+                    catalogCourseCodes = remote.courses.map { it.courseCode },
+                    isTeacher = remote.meta.isTeacher,
+                    isLoading = remote.meta.isLoading,
+                    loadFailed = remote.meta.loadFailed,
+                    owner = local.owner,
+                    drafts = local.drafts,
+                    localStates = local.states,
+                    demoEnabled = local.demoEnabled,
+                    demoPosts = local.demoPosts,
+                ),
+                view,
+                now
+            )
+        }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PostUiState())
 
     init {
@@ -251,20 +324,66 @@ class PostViewModel @Inject constructor(
 
     fun clearFilters() = view.update { it.copy(query = AnnouncementQuery()) }
 
-    fun setShowArchived(show: Boolean) = view.update { it.copy(showArchived = show) }
+    fun setShowArchived(show: Boolean) = setView(if (show) WallView.ARCHIVED else WallView.ACTIVE)
 
-    // ---- acciones sobre un anuncio (sólo en memoria) ----
+    fun setView(wallView: WallView) = view.update { it.copy(wallView = wallView) }
+
+    // ---- acciones sobre un anuncio (Room, sólo en este dispositivo) ----
 
     fun setArchived(postId: Int, archived: Boolean, notify: Boolean = true) {
-        val current = edits.value.archived
-        if ((postId in current) == archived) return
-        edits.update { it.copy(archived = if (archived) it.archived + postId else it.archived - postId) }
-        if (notify) _events.trySend(PostEvent.ArchivedChanged(postId, archived))
+        if ((localStates.value[postId]?.archived ?: false) == archived) return
+        viewModelScope.launch {
+            val o = ownerAsync.await() ?: return@launch
+            localStateRepository.setArchived(o, postId, archived)
+            if (notify) _events.trySend(PostEvent.ArchivedChanged(postId, archived))
+        }
     }
 
     fun setCommentsEnabled(postId: Int, enabled: Boolean) {
-        edits.update { it.copy(comments = it.comments + (postId to enabled)) }
-        _events.trySend(PostEvent.CommentsChanged(enabled))
+        viewModelScope.launch {
+            val o = ownerAsync.await() ?: return@launch
+            localStateRepository.setCommentsEnabled(o, postId, enabled)
+            _events.trySend(PostEvent.CommentsChanged(enabled))
+        }
+    }
+
+    // ---- borradores (Room) ----
+
+    fun saveDraft(form: DraftForm) {
+        viewModelScope.launch {
+            val o = ownerAsync.await()
+            if (o == null || !DraftRules.canSave(form)) {
+                _events.trySend(PostEvent.DraftNotSaved)
+                return@launch
+            }
+            draftRepository.saveDraft(DraftMapper.toEntity(form, o, System.currentTimeMillis()))
+            _events.trySend(PostEvent.DraftSaved(updated = form.isSaved))
+        }
+    }
+
+    fun deleteDraft(id: Long) {
+        viewModelScope.launch {
+            val o = ownerAsync.await() ?: return@launch
+            val draft = draftRepository.getDraft(o, id) ?: return@launch
+            draftRepository.deleteDraft(o, id)
+            lastDeletedDraft = draft
+            _events.trySend(PostEvent.DraftDeleted(id))
+        }
+    }
+
+    fun undoDeleteDraft() {
+        val draft = lastDeletedDraft ?: return
+        lastDeletedDraft = null
+        viewModelScope.launch { draftRepository.saveDraft(draft) }
+    }
+
+    // ---- datos de prueba (simulados, nunca van al backend) ----
+
+    fun setDemoDataEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStoreHelper.setDemoDataEnabled(enabled)
+            _events.trySend(PostEvent.DemoDataChanged(enabled, DemoAnnouncements.count))
+        }
     }
 
     // ---- envío ----
@@ -311,13 +430,16 @@ class PostViewModel @Inject constructor(
                 )
             }
             result.onSuccess { response ->
-                edits.update { it.copy(priorities = it.priorities + (response.post_id to draft.priority)) }
+                ownerAsync.await()?.let { o ->
+                    localStateRepository.setPriority(o, response.post_id, draft.priority)
+                    draft.draftId?.let { draftRepository.deleteDraft(o, it) }
+                }
                 _announcements.update { posts ->
                     listOf(localPost(draft, response.post_id, response.created_at)) +
                             posts.filterNot { it.id == response.post_id }
                 }
                 // Que el anuncio nuevo se vea arriba, en "Hoy"
-                view.value = ViewOptions()
+                view.value = WallViewOptions()
                 _events.trySend(PostEvent.Sent(audienceFor(draft.courseCatalogId, draft.recipient).sentMessage))
                 loadPosts()
             }.onFailure {
@@ -343,56 +465,6 @@ class PostViewModel @Inject constructor(
             date = createdAt,
             receiverPrivate = draft.recipient?.studentId,
             priority = draft.priority.code
-        )
-    }
-
-    private fun buildState(sources: Sources, view: ViewOptions, edits: LocalEdits, now: ZonedDateTime): PostUiState {
-        val isTeacher = sources.meta.isTeacher
-        val names = sources.students.associate { it.studentId to it.shortName }
-        val all = sources.posts.map { post ->
-            val recipientName = if (post.isPrivate) post.receiverPrivate?.let { names[it] } else null
-            val publishedAt = RelativeDate.parse(post.date)
-            AnnouncementUi(
-                id = post.id,
-                title = post.title,
-                content = post.content,
-                courseCode = post.courseCode,
-                courseName = post.courseName.orEmpty(),
-                isPrivate = post.isPrivate,
-                recipientName = recipientName,
-                privateLabel = when {
-                    recipientName != null -> "Para: $recipientName"
-                    // El estudiante sólo ve los privados que recibió (get_posts_fun)
-                    !isTeacher -> "Para ti"
-                    else -> "Privado"
-                },
-                priority = edits.priorities[post.id] ?: Priority.fromCode(post.priority),
-                allowComments = edits.comments[post.id] ?: post.allowComments,
-                commentCount = post.countComments,
-                dateLabel = publishedAt?.let { RelativeDate.format(it, now) } ?: post.date,
-                publishedAt = publishedAt,
-                isArchived = post.id in edits.archived,
-            )
-        }
-        val inView = all.filter { it.isArchived == view.showArchived }
-        val visible = AnnouncementFilter.filter(inView, view.query) { it.searchable }
-        val sections = RelativeDate.group(visible, now) { it.publishedAt }
-            .map { (label, items) -> AnnouncementSection(label, items) }
-        val courseCodes = (sources.courses.map { it.courseCode } + sources.posts.map { it.courseCode })
-            .filter { it.isNotBlank() }
-            .distinct()
-            .sorted()
-        return PostUiState(
-            isTeacher = isTeacher,
-            isLoading = sources.meta.isLoading,
-            loadFailed = sources.meta.loadFailed,
-            query = view.query,
-            showArchived = view.showArchived,
-            courseCodes = courseCodes,
-            sections = sections,
-            resultCount = visible.size,
-            totalInView = inView.size,
-            archivedCount = all.count { it.isArchived },
         )
     }
 
