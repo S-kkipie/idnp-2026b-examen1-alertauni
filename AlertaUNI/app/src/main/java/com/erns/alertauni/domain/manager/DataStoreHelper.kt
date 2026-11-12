@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -35,6 +36,9 @@ class DataStoreHelper @Inject constructor(
 
         //        val USER_TYPE = intPreferencesKey("USER_TYPE")
         val REMEMBER_ME = booleanPreferencesKey("REMEMBER_ME")
+
+        // Proyecto 02: mostrar anuncios simulados (DemoAnnouncements) en el muro del docente
+        val DEMO_DATA = booleanPreferencesKey("DEMO_DATA")
     }
 
     suspend fun saveUserUid(userId: String) {
@@ -161,5 +165,14 @@ class DataStoreHelper @Inject constructor(
         return dataStore.data.map { preferences ->
             preferences[REMEMBER_ME] ?: false
         }.first()
+    }
+
+    val demoDataEnabled: Flow<Boolean>
+        get() = dataStore.data.map { preferences -> preferences[DEMO_DATA] ?: false }
+
+    suspend fun setDemoDataEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[DEMO_DATA] = enabled
+        }
     }
 }
