@@ -29,3 +29,8 @@ val MyMutedForegroundColor = Color(0xFF64748b)
 val MyPriorityHighColor = Color(0xFFDC2626)
 val MyPriorityMediumColor = Color(0xFFD97706)
 val MyPriorityLowColor = Color(0xFF94A3B8)
+
+// Proyecto 02: anuncios simulados (datos de prueba) y borradores locales
+val MySimulatedColor = Color(0xFFFEF3C7)
+val MySimulatedForegroundColor = Color(0xFF92400E)
+val MyDraftBorderColor = Color(0xFF94A3B8)

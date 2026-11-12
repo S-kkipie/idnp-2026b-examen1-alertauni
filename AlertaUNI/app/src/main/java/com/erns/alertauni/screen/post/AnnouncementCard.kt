@@ -62,6 +62,8 @@ import com.erns.alertauni.ui.theme.MyPriorityMediumColor
 import com.erns.alertauni.ui.theme.MyPrimaryColor
 import com.erns.alertauni.ui.theme.MySecondaryColor
 import com.erns.alertauni.ui.theme.MySelectedColor
+import com.erns.alertauni.ui.theme.MySimulatedColor
+import com.erns.alertauni.ui.theme.MySimulatedForegroundColor
 import com.erns.alertauni.ui.theme.MySurfaceColor
 
 fun Priority.color(): Color = when (this) {
@@ -89,7 +91,7 @@ fun AnnouncementCard(
         Row(
             modifier = Modifier
                 .height(IntrinsicSize.Min)
-                .clickable(onClickLabel = "Ver comentarios", onClick = onOpen)
+                .clickable(onClickLabel = if (item.isSimulated) null else "Ver comentarios", onClick = onOpen)
         ) {
             Box(
                 modifier = Modifier
@@ -145,6 +147,7 @@ private fun MetaRow(item: AnnouncementUi, query: String) {
                 .background(MySecondaryColor, RoundedCornerShape(4.dp))
                 .padding(horizontal = 6.dp, vertical = 2.dp)
         )
+        if (item.isSimulated) SimulatedBadge()
         Row(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
@@ -292,6 +295,22 @@ private fun BottomRow(
     }
 }
 
+/** Marca de los anuncios de DemoAnnouncements: no existen en el servidor. */
+@Composable
+fun SimulatedBadge(modifier: Modifier = Modifier) {
+    Text(
+        text = "Simulado",
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = MySimulatedForegroundColor,
+        maxLines = 1,
+        modifier = modifier
+            .background(MySimulatedColor, RoundedCornerShape(4.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .semantics { contentDescription = "Anuncio simulado, no está en el servidor" }
+    )
+}
+
 /** Resalta las palabras buscadas (sin importar tildes ni mayúsculas). */
 @Composable
 private fun highlight(text: String, query: String): AnnotatedString = remember(text, query) {
@@ -328,6 +347,12 @@ private val previewItems = listOf(
         courseCode = "INF-01", courseName = "Ingeniería de Software", isPrivate = false,
         recipientName = null, privateLabel = "Privado", priority = Priority.BAJA, allowComments = false,
         commentCount = 0, dateLabel = "31 may", publishedAt = null, isArchived = false
+    ),
+    AnnouncementUi(
+        id = -1001, title = "Aula 304", content = "Hoy la clase es en el aula 304.",
+        courseCode = "INF-03", courseName = "Bases de Datos", isPrivate = false,
+        recipientName = null, privateLabel = "Privado", priority = Priority.BAJA, allowComments = true,
+        commentCount = 1, dateLabel = "hace 1 h", publishedAt = null, isArchived = false, isSimulated = true
     ),
 )
 

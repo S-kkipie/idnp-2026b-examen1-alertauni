@@ -26,22 +26,33 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Campaign
+import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material.icons.outlined.Unarchive
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -52,6 +63,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -83,18 +96,39 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.erns.alertauni.data.demo.DemoAnnouncements
+import com.erns.alertauni.domain.post.DraftSummary
 import com.erns.alertauni.domain.post.TypeFilter
 import com.erns.alertauni.ui.theme.MyBackgroundColor
 import com.erns.alertauni.ui.theme.MyBorderColor
 import com.erns.alertauni.ui.theme.MyForegroundColor
 import com.erns.alertauni.ui.theme.MyMutedForegroundColor
-import com.erns.alertauni.ui.theme.MyPriorityHighColor
 import com.erns.alertauni.ui.theme.MyPrimaryColor
 import com.erns.alertauni.ui.theme.MyPrimaryForegroundColor
+import com.erns.alertauni.ui.theme.MyPriorityHighColor
 import com.erns.alertauni.ui.theme.MySecondaryColor
+import com.erns.alertauni.ui.theme.MySimulatedColor
+import com.erns.alertauni.ui.theme.MySimulatedForegroundColor
 import com.erns.alertauni.ui.theme.MySurfaceColor
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+
+/** Acciones del muro. Por defecto no hacen nada (vistas previas y capturas de pantalla). */
+class PostActions(
+    val onSearchChange: (String) -> Unit = {},
+    val onToggleType: (TypeFilter) -> Unit = {},
+    val onToggleHigh: () -> Unit = {},
+    val onToggleCourse: (String) -> Unit = {},
+    val onClearFilters: () -> Unit = {},
+    val onRetry: () -> Unit = {},
+    val onShowView: (WallView) -> Unit = {},
+    val onOpen: (AnnouncementUi) -> Unit = {},
+    val onToggleArchive: (AnnouncementUi) -> Unit = {},
+    val onToggleComments: (AnnouncementUi) -> Unit = {},
+    val onOpenDraft: (DraftSummary) -> Unit = {},
+    val onDeleteDraft: (DraftSummary) -> Unit = {},
+    val onSetDemoData: (Boolean) -> Unit = {},
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,19 +147,23 @@ fun PostScreen(
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     var showComposer by rememberSaveable { mutableStateOf(false) }
+    var editingDraftId by rememberSaveable { mutableStateOf<Long?>(null) }
 
-    LaunchedEffect(Unit) {
-        onFabActionReady {
-            if (catalogCourses.isNotEmpty()) {
-                showComposer = true
-            } else {
-                scope.launch {
-                    snackbarHostState.showSnackbar(
-                        message = "Debes estar inscrito en al menos un curso para crear un anuncio."
-                    )
-                }
+    fun openComposer(draftId: Long?) {
+        if (catalogCourses.isNotEmpty()) {
+            editingDraftId = draftId
+            showComposer = true
+        } else {
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    message = "Debes estar inscrito en al menos un curso para crear un anuncio."
+                )
             }
         }
+    }
+
+    LaunchedEffect(Unit) {
+        onFabActionReady { openComposer(null) }
     }
 
     val fabExpanded = rememberFabExpanded(listState)
@@ -133,7 +171,7 @@ fun PostScreen(
 
     // Al cambiar la búsqueda, los filtros o la vista: barra visible y lista desde arriba
     LaunchedEffect(Unit) {
-        snapshotFlow { state.query to state.showArchived }
+        snapshotFlow { state.query to state.wallView }
             .drop(1)
             .collect {
                 scrollBehavior.state.heightOffset = 0f
@@ -168,11 +206,22 @@ fun PostScreen(
                         }
                     }
 
+                    // El backend aún no guarda este cambio: se aclara que es local
                     is PostEvent.CommentsChanged -> snackbarHostState.showSnackbar(
-                        if (event.enabled) "Comentarios activados" else "Comentarios desactivados"
+                        if (event.enabled) {
+                            "Comentarios activados en este dispositivo"
+                        } else {
+                            "Comentarios desactivados en este dispositivo"
+                        }
                     )
 
-                    is PostEvent.DraftSaved -> snackbarHostState.showSnackbar("Borrador guardado")
+                    is PostEvent.DraftSaved -> {
+                        val result = snackbarHostState.showSnackbar(
+                            message = if (event.updated) "Borrador actualizado" else "Borrador guardado en este dispositivo",
+                            actionLabel = "Ver"
+                        )
+                        if (result == SnackbarResult.ActionPerformed) postViewModel.setView(WallView.DRAFTS)
+                    }
 
                     PostEvent.DraftNotSaved -> snackbarHostState.showSnackbar("No se pudo guardar el borrador")
 
@@ -186,37 +235,89 @@ fun PostScreen(
                     }
 
                     is PostEvent.DemoDataChanged -> snackbarHostState.showSnackbar(
-                        if (event.enabled) "${event.count} anuncios simulados en el muro" else "Datos de prueba ocultos"
+                        if (event.enabled) {
+                            "${event.count} anuncios simulados en el muro (no van al servidor)"
+                        } else {
+                            "Datos de prueba ocultos"
+                        }
                     )
                 }
             }
         }
     }
 
-    BackHandler(enabled = state.showArchived) { postViewModel.setShowArchived(false) }
+    BackHandler(enabled = state.wallView != WallView.ACTIVE) { postViewModel.setView(WallView.ACTIVE) }
 
     if (showComposer && catalogCourses.isNotEmpty()) {
+        val editing = editingDraftId?.let { id -> state.drafts.firstOrNull { it.id == id }?.form }
         NewAnnouncementSheet(
             courses = catalogCourses,
             students = students,
             canSendPrivate = state.isTeacher,
             audienceFor = postViewModel::audienceFor,
             onSend = postViewModel::send,
-            onDismiss = { showComposer = false }
+            onDismiss = {
+                showComposer = false
+                editingDraftId = null
+            },
+            initial = editing,
+            onSaveDraft = if (state.canUseDrafts) postViewModel::saveDraft else null
         )
     }
 
+    PostContent(
+        state = state,
+        modifier = modifier,
+        listState = listState,
+        scrollBehavior = scrollBehavior,
+        actions = PostActions(
+            onSearchChange = postViewModel::onSearchChange,
+            onToggleType = postViewModel::toggleType,
+            onToggleHigh = postViewModel::toggleOnlyHigh,
+            onToggleCourse = postViewModel::toggleCourse,
+            onClearFilters = postViewModel::clearFilters,
+            onRetry = postViewModel::refresh,
+            onShowView = postViewModel::setView,
+            onOpen = { item ->
+                if (item.isSimulated) {
+                    // Simulado: no existe en el servidor, no hay comentarios que abrir
+                    scope.launch {
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                        snackbarHostState.showSnackbar("Anuncio simulado: no tiene comentarios en el servidor")
+                    }
+                } else {
+                    onClickComment(item.id.toString())
+                }
+            },
+            onToggleArchive = { postViewModel.setArchived(it.id, !it.isArchived) },
+            onToggleComments = { postViewModel.setCommentsEnabled(it.id, !it.allowComments) },
+            onOpenDraft = { openComposer(it.id) },
+            onDeleteDraft = { postViewModel.deleteDraft(it.id) },
+            onSetDemoData = postViewModel::setDemoDataEnabled,
+        )
+    )
+}
+
+/** Muro sin ViewModel: sólo dibuja [state] y avisa las acciones. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PostContent(
+    state: PostUiState,
+    actions: PostActions,
+    modifier: Modifier = Modifier,
+    listState: LazyListState = rememberLazyListState(),
+    scrollBehavior: TopAppBarScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(),
+) {
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MyBackgroundColor,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             PostTopBar(
-                showArchived = state.showArchived,
-                archivedCount = state.archivedCount,
+                state = state,
                 scrollBehavior = scrollBehavior,
-                onOpenArchived = { postViewModel.setShowArchived(true) },
-                onBack = { postViewModel.setShowArchived(false) }
+                onShowView = actions.onShowView,
+                onSetDemoData = actions.onSetDemoData
             )
         }
     ) { padding ->
@@ -225,18 +326,26 @@ fun PostScreen(
                 .padding(padding)
                 .fillMaxSize()
         ) {
+            if (state.showDrafts) {
+                DraftList(drafts = state.drafts, listState = listState, actions = actions)
+                return@Column
+            }
             SearchField(
                 text = state.query.text,
-                onTextChange = postViewModel::onSearchChange
+                onTextChange = actions.onSearchChange
             )
             FilterRow(
                 state = state,
-                onToggleType = postViewModel::toggleType,
-                onToggleHigh = postViewModel::toggleOnlyHigh,
-                onToggleCourse = postViewModel::toggleCourse
+                onToggleType = actions.onToggleType,
+                onToggleHigh = actions.onToggleHigh,
+                onToggleCourse = actions.onToggleCourse,
+                onOpenDrafts = { actions.onShowView(WallView.DRAFTS) }
             )
+            if (state.demoEnabled) {
+                DemoBanner(count = state.demoCount, onHide = { actions.onSetDemoData(false) })
+            }
             if (state.query.isActive && state.totalInView > 0) {
-                ResultsRow(count = state.resultCount, onClear = postViewModel::clearFilters)
+                ResultsRow(count = state.resultCount, onClear = actions.onClearFilters)
             }
             Box(modifier = Modifier.weight(1f)) {
                 when {
@@ -245,7 +354,7 @@ fun PostScreen(
                         modifier = Modifier.align(Alignment.Center)
                     )
 
-                    state.totalInView == 0 -> NoAnnouncements(state, onRetry = postViewModel::refresh)
+                    state.totalInView == 0 -> NoAnnouncements(state, onRetry = actions.onRetry)
 
                     state.resultCount == 0 -> EmptyState(
                         icon = Icons.Outlined.SearchOff,
@@ -256,15 +365,15 @@ fun PostScreen(
                         },
                         message = "Prueba con otras palabras o quita algún filtro.",
                         actionLabel = "Limpiar búsqueda y filtros",
-                        onAction = postViewModel::clearFilters
+                        onAction = actions.onClearFilters
                     )
 
                     else -> AnnouncementList(
                         state = state,
                         listState = listState,
-                        onOpen = { onClickComment(it.id.toString()) },
-                        onToggleArchive = { postViewModel.setArchived(it.id, !it.isArchived) },
-                        onToggleComments = { postViewModel.setCommentsEnabled(it.id, !it.allowComments) }
+                        onOpen = actions.onOpen,
+                        onToggleArchive = actions.onToggleArchive,
+                        onToggleComments = actions.onToggleComments
                     )
                 }
             }
@@ -294,41 +403,95 @@ private fun rememberFabExpanded(listState: LazyListState): Boolean {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PostTopBar(
-    showArchived: Boolean,
-    archivedCount: Int,
+    state: PostUiState,
     scrollBehavior: TopAppBarScrollBehavior,
-    onOpenArchived: () -> Unit,
-    onBack: () -> Unit,
+    onShowView: (WallView) -> Unit,
+    onSetDemoData: (Boolean) -> Unit,
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
+    var showSources by rememberSaveable { mutableStateOf(false) }
     TopAppBar(
         title = {
             Text(
-                text = if (showArchived) "Archivados" else "Anuncios",
+                text = when (state.wallView) {
+                    WallView.ACTIVE -> "Anuncios"
+                    WallView.ARCHIVED -> "Archivados"
+                    WallView.DRAFTS -> "Borradores"
+                },
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold
             )
         },
         navigationIcon = {
-            if (showArchived) {
-                IconButton(onClick = onBack) {
+            if (state.wallView != WallView.ACTIVE) {
+                IconButton(onClick = { onShowView(WallView.ACTIVE) }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver a anuncios")
                 }
             }
         },
         actions = {
-            if (!showArchived) {
-                IconButton(onClick = onOpenArchived) {
+            if (state.wallView == WallView.ACTIVE) {
+                IconButton(onClick = { onShowView(WallView.ARCHIVED) }) {
                     BadgedBox(
                         badge = {
-                            if (archivedCount > 0) {
+                            if (state.archivedCount > 0) {
                                 Badge(containerColor = MySecondaryColor, contentColor = MyPrimaryColor) {
-                                    Text(archivedCount.toString())
+                                    Text(state.archivedCount.toString())
                                 }
                             }
                         }
                     ) {
                         Icon(Icons.Outlined.Archive, contentDescription = "Ver archivados")
                     }
+                }
+            }
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "Más opciones")
+                }
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                    containerColor = MySurfaceColor
+                ) {
+                    if (state.isTeacher) {
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text("Datos de prueba (simulados)")
+                                    Text(
+                                        text = "${DemoAnnouncements.count} anuncios locales, no van al servidor",
+                                        fontSize = 12.sp,
+                                        color = MyMutedForegroundColor
+                                    )
+                                }
+                            },
+                            leadingIcon = { Icon(Icons.Outlined.Science, contentDescription = null) },
+                            trailingIcon = {
+                                Switch(
+                                    checked = state.demoEnabled,
+                                    onCheckedChange = null,
+                                    colors = SwitchDefaults.colors(
+                                        checkedTrackColor = MyPrimaryColor,
+                                        checkedThumbColor = MyPrimaryForegroundColor
+                                    )
+                                )
+                            },
+                            onClick = {
+                                menuOpen = false
+                                onSetDemoData(!state.demoEnabled)
+                            }
+                        )
+                        HorizontalDivider(color = MyBorderColor)
+                    }
+                    DropdownMenuItem(
+                        text = { Text("Origen de los datos") },
+                        leadingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            showSources = true
+                        }
+                    )
                 }
             }
         },
@@ -342,6 +505,80 @@ private fun PostTopBar(
         ),
         scrollBehavior = scrollBehavior
     )
+    if (showSources) DataSourcesDialog(onDismiss = { showSources = false })
+}
+
+/** Qué viene del backend, qué se guarda en el dispositivo y qué es simulado. */
+@Composable
+private fun DataSourcesDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = MySurfaceColor,
+        title = { Text("Origen de los datos") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                SourceRow(
+                    icon = Icons.Outlined.Cloud,
+                    title = "Servidor (Supabase)",
+                    text = "Anuncios publicados, envío público y privado, comentarios y estudiantes de tus cursos."
+                )
+                SourceRow(
+                    icon = Icons.Outlined.PhoneAndroid,
+                    title = "Este dispositivo (Room)",
+                    text = "Borradores, prioridad, archivado y activar o desactivar comentarios. " +
+                            "Se guardan por cuenta y siguen al cerrar la app."
+                )
+                SourceRow(
+                    icon = Icons.Outlined.Science,
+                    title = "Simulado",
+                    text = "Anuncios de prueba con la etiqueta «Simulado». No se leen ni se envían al servidor."
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Entendido", color = MyPrimaryColor) }
+        }
+    )
+}
+
+@Composable
+private fun SourceRow(icon: ImageVector, title: String, text: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Icon(icon, contentDescription = null, tint = MyPrimaryColor, modifier = Modifier.size(22.dp))
+        Column {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MyForegroundColor)
+            Text(text, fontSize = 13.sp, color = MyMutedForegroundColor)
+        }
+    }
+}
+
+@Composable
+private fun DemoBanner(count: Int, onHide: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp, end = 12.dp, bottom = 4.dp)
+            .background(MySimulatedColor, RoundedCornerShape(8.dp))
+            .padding(start = 12.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Icon(
+            Icons.Outlined.Science,
+            contentDescription = null,
+            tint = MySimulatedForegroundColor,
+            modifier = Modifier.size(18.dp)
+        )
+        Text(
+            text = "Datos de prueba: $count anuncios simulados, no van al servidor.",
+            fontSize = 12.sp,
+            color = MySimulatedForegroundColor,
+            modifier = Modifier.weight(1f)
+        )
+        TextButton(onClick = onHide) {
+            Text("Ocultar", color = MySimulatedForegroundColor, fontWeight = FontWeight.SemiBold)
+        }
+    }
 }
 
 @Composable
@@ -382,6 +619,7 @@ private fun FilterRow(
     onToggleType: (TypeFilter) -> Unit,
     onToggleHigh: () -> Unit,
     onToggleCourse: (String) -> Unit,
+    onOpenDrafts: () -> Unit,
 ) {
     val query = state.query
     LazyRow(
@@ -389,6 +627,14 @@ private fun FilterRow(
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        // Los borradores van aparte: nunca se mezclan con los anuncios publicados
+        if (state.draftCount > 0 && state.wallView == WallView.ACTIVE) {
+            item(key = "drafts") {
+                WallFilterChip("Borradores (${state.draftCount})", false, onOpenDrafts) {
+                    Icon(Icons.Outlined.EditNote, contentDescription = null, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
         item {
             WallFilterChip("Públicos", query.type == TypeFilter.PUBLIC, { onToggleType(TypeFilter.PUBLIC) }) {
                 Icon(Icons.Outlined.Groups, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -564,6 +810,82 @@ private fun SwipeToArchive(
                     contentDescription = null,
                     tint = MyPrimaryForegroundColor
                 )
+            }
+        },
+        content = content
+    )
+}
+
+@Composable
+private fun DraftList(drafts: List<DraftSummary>, listState: LazyListState, actions: PostActions) {
+    if (drafts.isEmpty()) {
+        EmptyState(
+            icon = Icons.Outlined.EditNote,
+            title = "No tienes borradores",
+            message = "Al escribir un anuncio, toca «Guardar borrador» para terminarlo después."
+        )
+        return
+    }
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 96.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item(key = "drafts-info") {
+            Row(
+                modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.PhoneAndroid,
+                    contentDescription = null,
+                    tint = MyMutedForegroundColor,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "Guardados sólo en este dispositivo, para tu cuenta. No se publican hasta que los envíes.",
+                    fontSize = 13.sp,
+                    color = MyMutedForegroundColor
+                )
+            }
+        }
+        items(drafts, key = { it.id }) { draft ->
+            SwipeToDelete(onSwiped = { actions.onDeleteDraft(draft) }) {
+                DraftCard(
+                    draft = draft,
+                    onOpen = { actions.onOpenDraft(draft) },
+                    onDelete = { actions.onDeleteDraft(draft) }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToDelete(onSwiped: () -> Unit, content: @Composable RowScope.() -> Unit) {
+    val dismissState = rememberSwipeToDismissBoxState(positionalThreshold = { it * 0.35f })
+    LaunchedEffect(dismissState.currentValue) {
+        if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) onSwiped()
+    }
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            val active = dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (active) MyPriorityHighColor else Color.Transparent)
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Eliminar", color = MyPrimaryForegroundColor, fontWeight = FontWeight.SemiBold)
+                Icon(Icons.Outlined.Delete, contentDescription = null, tint = MyPrimaryForegroundColor)
             }
         },
         content = content
