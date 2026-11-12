@@ -12,9 +12,13 @@ import com.erns.alertauni.data.repository.ContactRepository
 import com.erns.alertauni.data.repository.ContactRepositoryImpl
 import com.erns.alertauni.data.repository.CourseRepository
 import com.erns.alertauni.data.repository.CourseRepositoryImpl
+import com.erns.alertauni.data.repository.DraftRepository
+import com.erns.alertauni.data.repository.DraftRepositoryImpl
 import com.erns.alertauni.data.repository.NotificationRepository
 import com.erns.alertauni.data.repository.NotificationRepositoryImpl
 import com.erns.alertauni.data.repository.PostRepository
+import com.erns.alertauni.data.repository.PostLocalStateRepository
+import com.erns.alertauni.data.repository.PostLocalStateRepositoryImpl
 import com.erns.alertauni.data.repository.PostRepositoryImpl
 import com.erns.alertauni.data.repository.StudentRepository
 import com.erns.alertauni.data.repository.StudentRepositoryImpl
@@ -81,4 +85,16 @@ abstract class RepositoryModule {
     abstract fun bindNotificationRepository(
         notificationRepositoryImpl: NotificationRepositoryImpl
     ): NotificationRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindDraftRepository(
+        draftRepositoryImpl: DraftRepositoryImpl
+    ): DraftRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPostLocalStateRepository(
+        postLocalStateRepositoryImpl: PostLocalStateRepositoryImpl
+    ): PostLocalStateRepository
 }

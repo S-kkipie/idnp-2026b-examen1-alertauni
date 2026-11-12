@@ -2,7 +2,9 @@ package com.erns.alertauni.data.di
 
 import android.content.Context
 import com.erns.alertauni.data.local.AppDatabase
+import com.erns.alertauni.data.local.DraftDao
 import com.erns.alertauni.data.local.NotificacionDao
+import com.erns.alertauni.data.local.PostLocalStateDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -23,4 +25,12 @@ object DatabaseModule {
     @Provides
     fun provideNotificacionDao(database: AppDatabase): NotificacionDao =
         database.notificacionDao()
+
+    @Provides
+    fun provideDraftDao(database: AppDatabase): DraftDao =
+        database.draftDao()
+
+    @Provides
+    fun providePostLocalStateDao(database: AppDatabase): PostLocalStateDao =
+        database.postLocalStateDao()
 }
