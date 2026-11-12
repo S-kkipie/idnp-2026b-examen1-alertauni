@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Search
@@ -37,6 +38,7 @@ import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SegmentedButton
@@ -69,7 +71,10 @@ import androidx.compose.ui.unit.sp
 import com.erns.alertauni.data.model.CatalogCourseEntity
 import com.erns.alertauni.domain.post.AnnouncementFilter
 import com.erns.alertauni.domain.post.Audience
+import com.erns.alertauni.domain.post.DraftForm
+import com.erns.alertauni.domain.post.DraftRules
 import com.erns.alertauni.domain.post.Priority
+import com.erns.alertauni.domain.post.RecipientMode
 import com.erns.alertauni.ui.theme.MyBorderColor
 import com.erns.alertauni.ui.theme.MyForegroundColor
 import com.erns.alertauni.ui.theme.MyMutedForegroundColor
@@ -80,15 +85,14 @@ import com.erns.alertauni.ui.theme.MySecondaryColor
 import com.erns.alertauni.ui.theme.MySurfaceColor
 import kotlinx.coroutines.launch
 
-private const val TITLE_MAX = 80
-private const val CONTENT_MAX = 500
+private const val TITLE_MAX = DraftRules.TITLE_MAX
+private const val CONTENT_MAX = DraftRules.CONTENT_MAX
 private const val MAX_RESULTS = 5
-
-private enum class RecipientMode { COURSE, STUDENT }
 
 /**
  * Hoja "Nuevo anuncio". Los campos siguen el orden de decisión: a quién, prioridad, texto.
- * Sólo el docente ve la opción "Un estudiante".
+ * Sólo el docente ve la opción "Un estudiante". Con [initial] continúa un borrador guardado;
+ * sin [onSaveDraft] (no hay cuenta a la que asociarlo) no se ofrece guardar borrador.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,20 +103,43 @@ fun NewAnnouncementSheet(
     audienceFor: (courseCatalogId: String, recipient: StudentOption?) -> Audience,
     onSend: (AnnouncementDraft) -> Unit,
     onDismiss: () -> Unit,
+    initial: DraftForm? = null,
+    onSaveDraft: ((DraftForm) -> Unit)? = null,
 ) {
-    var mode by rememberSaveable { mutableStateOf(RecipientMode.COURSE) }
-    var courseId by rememberSaveable { mutableStateOf(courses.singleOrNull()?.id) }
-    var recipientKey by rememberSaveable { mutableStateOf<String?>(null) }
-    var priority by rememberSaveable { mutableStateOf(Priority.MEDIA) }
-    var title by rememberSaveable { mutableStateOf("") }
-    var content by rememberSaveable { mutableStateOf("") }
-    var allowComments by rememberSaveable { mutableStateOf(true) }
+    var mode by rememberSaveable { mutableStateOf(initial?.mode ?: RecipientMode.COURSE) }
+    var courseId by rememberSaveable {
+        mutableStateOf(if (initial != null) initial.courseCatalogId else courses.singleOrNull()?.id)
+    }
+    var recipientKey by rememberSaveable { mutableStateOf(initial?.let { draftRecipient(it)?.key }) }
+    var priority by rememberSaveable { mutableStateOf(initial?.priority ?: Priority.MEDIA) }
+    var title by rememberSaveable { mutableStateOf(initial?.title.orEmpty()) }
+    var content by rememberSaveable { mutableStateOf(initial?.content.orEmpty()) }
+    var allowComments by rememberSaveable { mutableStateOf(initial?.allowComments ?: true) }
     var showDiscard by remember { mutableStateOf(false) }
     var closing by remember { mutableStateOf(false) }
 
+    // Si la lista de estudiantes aún no cargó, el destinatario del borrador se muestra igual
     val recipient = students.firstOrNull { it.key == recipientKey }
-    val hasText = title.isNotBlank() || content.isNotBlank()
+        ?: initial?.let { draftRecipient(it) }?.takeIf { it.key == recipientKey }
+    val form = DraftForm(
+        id = initial?.id ?: 0,
+        mode = mode,
+        courseCatalogId = if (mode == RecipientMode.STUDENT && recipient != null) recipient.courseCatalogId else courseId,
+        courseCode = if (mode == RecipientMode.STUDENT && recipient != null) {
+            recipient.courseCode
+        } else {
+            courses.firstOrNull { it.id == courseId }?.courseCode.orEmpty()
+        },
+        recipientStudentId = recipient?.studentId,
+        recipientName = recipient?.shortName,
+        priority = priority,
+        title = title,
+        content = content,
+        allowComments = allowComments,
+    )
+    val hasText = DraftRules.hasChanges(initial, form)
     val hasTextState = rememberUpdatedState(hasText)
+    val canSaveDraft = onSaveDraft != null && DraftRules.canSave(form)
 
     val scope = rememberCoroutineScope()
     // Deslizar hacia abajo o tocar fuera con texto escrito pide confirmación
@@ -168,7 +195,7 @@ fun NewAnnouncementSheet(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Nuevo anuncio",
+                    text = if (initial != null) "Editar borrador" else "Nuevo anuncio",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MyForegroundColor,
@@ -293,7 +320,8 @@ fun NewAnnouncementSheet(
                             content = content.trim(),
                             priority = priority,
                             allowComments = allowComments,
-                            recipient = student
+                            recipient = student,
+                            draftId = initial?.id?.takeIf { it != 0L }
                         )
                     )
                     close()
@@ -313,28 +341,105 @@ fun NewAnnouncementSheet(
                     modifier = Modifier.padding(start = 8.dp, top = 6.dp, bottom = 6.dp)
                 )
             }
+            if (onSaveDraft != null) {
+                OutlinedButton(
+                    onClick = {
+                        onSaveDraft(form)
+                        close()
+                    },
+                    enabled = canSaveDraft,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Outlined.EditNote, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(
+                        text = if (initial != null) "Guardar cambios del borrador" else "Guardar borrador",
+                        color = if (canSaveDraft) MyPrimaryColor else MyMutedForegroundColor,
+                        modifier = Modifier.padding(start = 8.dp, top = 6.dp, bottom = 6.dp)
+                    )
+                }
+                Hint("Los borradores se guardan sólo en este dispositivo y en tu cuenta.")
+            }
         }
 
         if (showDiscard) {
-            AlertDialog(
-                onDismissRequest = { showDiscard = false },
-                containerColor = MySurfaceColor,
-                title = { Text("¿Descartar anuncio?") },
-                text = { Text("Se perderá lo que escribiste.") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showDiscard = false
-                        close()
-                    }) { Text("Descartar", color = MyPriorityHighColor) }
+            DiscardDialog(
+                editingDraft = initial != null,
+                canSaveDraft = canSaveDraft,
+                onSaveDraft = {
+                    showDiscard = false
+                    onSaveDraft?.invoke(form)
+                    close()
                 },
-                dismissButton = {
-                    TextButton(onClick = { showDiscard = false }) {
-                        Text("Seguir editando", color = MyPrimaryColor)
-                    }
-                }
+                onDiscard = {
+                    showDiscard = false
+                    close()
+                },
+                onKeepEditing = { showDiscard = false }
             )
         }
     }
+}
+
+/** Destinatario guardado en un borrador privado, por si aún no cargó la lista de estudiantes. */
+private fun draftRecipient(draft: DraftForm): StudentOption? {
+    if (draft.mode != RecipientMode.STUDENT) return null
+    val id = draft.recipientStudentId ?: return null
+    val catalogId = draft.courseCatalogId ?: return null
+    val name = draft.recipientName ?: "Estudiante"
+    return StudentOption(id, code = "", fullName = name, shortName = name, courseCatalogId = catalogId, courseCode = draft.courseCode)
+}
+
+/** Al cerrar con cambios: guardar como borrador (si se puede), descartar o seguir editando. */
+@Composable
+private fun DiscardDialog(
+    editingDraft: Boolean,
+    canSaveDraft: Boolean,
+    onSaveDraft: () -> Unit,
+    onDiscard: () -> Unit,
+    onKeepEditing: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onKeepEditing,
+        containerColor = MySurfaceColor,
+        title = {
+            Text(
+                when {
+                    editingDraft -> "¿Guardar los cambios del borrador?"
+                    canSaveDraft -> "¿Guardar como borrador?"
+                    else -> "¿Descartar anuncio?"
+                }
+            )
+        },
+        text = {
+            Text(
+                if (canSaveDraft) {
+                    "Se guarda sólo en este dispositivo y podrás terminarlo después desde «Borradores»."
+                } else {
+                    "Se perderá lo que escribiste."
+                }
+            )
+        },
+        confirmButton = {
+            Column(horizontalAlignment = Alignment.End) {
+                if (canSaveDraft) {
+                    Button(
+                        onClick = onSaveDraft,
+                        colors = ButtonDefaults.buttonColors(containerColor = MyPrimaryColor)
+                    ) {
+                        Icon(Icons.Outlined.EditNote, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text("Guardar borrador", modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+                TextButton(onClick = onDiscard) {
+                    Text(if (editingDraft) "Descartar cambios" else "Descartar", color = MyPriorityHighColor)
+                }
+                TextButton(onClick = onKeepEditing) {
+                    Text("Seguir editando", color = MyPrimaryColor)
+                }
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
